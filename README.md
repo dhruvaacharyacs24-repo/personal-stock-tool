@@ -2,50 +2,37 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 # RSI Scan Engine
 
-A personal stock analysis tool that scans a watchlist and selects the best stock based on weekly RSI.
+A personal stock analysis tool I built to scan my watchlist and identify the best stock to buy based on weekly RSI.
+
+## Overview
+
+This is a private tool designed for my own use. It analyzes selected stocks using technical indicators and returns a single best candidate based on oversold conditions and basic trend validation.
 
 ## Features
-- Watchlist-based scanning
-- Weekly RSI analysis
-- Trend filtering (SMA)
-- Single best stock output
+
+* Watchlist-based stock scanning
+* Weekly RSI analysis (14-period)
+* Returns one best stock (no rankings)
+* Integrated charts with visualizations.
+* Simple, modern UI
 
 ## Tech Stack
-- Next.js
-- Node.js
-- Alpha Vantage API
-- TradingView Charts
 
-## How it works
-1. Fetch RSI + price + SMA
-2. Filter weak stocks
-3. Select lowest RSI
+* Next.js
+* TypeScript
+* Tailwind CSS
+* TradingView Lightweight Charts
+* Yahoo Finance API (`yahoo-finance2`)
 
-## Getting Started
+## How it Works
 
-First, run the development server:
+1. Fetch weekly RSI, price, volume, and SMA
+2. Filter out structurally weak stocks
+3. Select the final stock
+4. Display result with chart and explanation
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Notes
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This is a personal project built for learning and practical use, not a production trading system.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
