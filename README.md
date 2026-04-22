@@ -27,8 +27,8 @@ GravityScan is a high-performance, real-time technical stock screener and charti
 
 1. Clone the repository: 
 ```bash
-git clone https://github.com/dhruvaacharyacs24-repo/my_stock_analyser.git
-cd my_stock_analyser
+git clone https://github.com/dhruvaacharyacs24-repo/personal-stock-tool.git
+cd personal-stock-tool
 ```
 
 2. Install the necessary dependencies:
