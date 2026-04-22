@@ -1,23 +1,21 @@
 import { NextResponse } from 'next/server';
 import { fetchStockReport, StockData } from '@/lib/stock-service';
 
+const NIFTY_50 = [
+  'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'SBIN.NS', 'BHARTIARTL.NS', 'ITC.NS', 'HINDUNILVR.NS', 'LT.NS',
+  'BAJFINANCE.NS', 'HCLTECH.NS', 'MARUTI.NS', 'SUNPHARMA.NS', 'TATAMOTORS.NS', 'KOTAKBANK.NS', 'ONGC.NS', 'NTPC.NS', 'M&M.NS', 'AXISBANK.NS',
+  'COALINDIA.NS', 'TITAN.NS', 'ASIANPAINT.NS', 'ULTRACEMCO.NS', 'BAJAJFINSV.NS', 'WIPRO.NS', 'POWERGRID.NS', 'NESTLEIND.NS', 'JSWSTEEL.NS', 'TATASTEEL.NS',
+  'GRASIM.NS', 'ADANIENT.NS', 'HDFCLIFE.NS', 'TECHM.NS', 'CIPLA.NS', 'APOLLOHOSP.NS', 'BRITANNIA.NS', 'EICHERMOT.NS', 'DIVISLAB.NS', 'DRREDDY.NS',
+  'HINDALCO.NS', 'INDUSINDBK.NS', 'TATACONSUM.NS', 'UPL.NS', 'SBILIFE.NS', 'ADANIPORTS.NS', 'HEROMOTOCO.NS', 'LTIM.NS', 'BAJAJ-AUTO.NS', 'BPCL.NS'
+];
+
 export async function POST(req: Request) {
   try {
-    const { symbols, apiKey } = await req.json();
-
-    if (!symbols || !Array.isArray(symbols)) {
-      return NextResponse.json({ error: 'Invalid symbols list' }, { status: 400 });
-    }
-
-    if (!apiKey) {
-      return NextResponse.json({ error: 'API Key required' }, { status: 400 });
-    }
-
-    // Process all stocks concurrently
+    // Process all Nifty 50 stocks concurrently
     const reports = await Promise.all(
-      symbols.map(async (symbol) => {
+      NIFTY_50.map(async (symbol) => {
         try {
-          return await fetchStockReport(symbol, apiKey);
+          return await fetchStockReport(symbol);
         } catch (e) {
           console.error(`Failed for ${symbol}:`, e);
           return null;
@@ -30,19 +28,18 @@ export async function POST(req: Request) {
 
     // STRATEGY LOGIC:
     // 1. Volume > 100,000 (basic liquidity)
-    // Removed strict RSI bands and SMA 50 criteria per user request
+    // 2. Weekly RSI between 20 and 35
     const candidates = validReports.filter(stock => 
       stock.volume > 100000 &&
-      stock.rsi > 0 // Just ensure it actually calculated
+      stock.rsi >= 20 &&
+      stock.rsi <= 35
     );
 
-    // Pick best (Lowest RSI)
-    const bestStock = candidates.length > 0 
-      ? candidates.sort((a, b) => a.rsi - b.rsi)[0] 
-      : null;
+    // Pick top 3 (Lowest RSI first)
+    const topStocks = candidates.sort((a, b) => a.rsi - b.rsi).slice(0, 3);
 
     return NextResponse.json({
-      bestStock,
+      topStocks,
       totalScanned: validReports.length,
       potentialCandidates: candidates.length,
       allReports: validReports

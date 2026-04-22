@@ -3,14 +3,14 @@ import { fetchCandles, calculateRSIHistory, calculateSMAData } from '@/lib/stock
 
 export async function POST(req: Request) {
   try {
-    const { symbol, apiKey } = await req.json();
+    const { symbol } = await req.json();
 
-    if (!symbol || !apiKey) {
-      return NextResponse.json({ error: 'Symbol and API Key required' }, { status: 400 });
+    if (!symbol) {
+      return NextResponse.json({ error: 'Symbol required' }, { status: 400 });
     }
 
     console.log(`[API] Fetching candles for ${symbol}...`);
-    const data = await fetchCandles(symbol, apiKey) as any;
+    const data = await fetchCandles(symbol) as any;
     console.log(`[API] Yahoo response status: ${data.s}`);
 
     if (data.s !== 'ok' || !data.c) {

@@ -52,9 +52,9 @@ export const calculateSMA = (prices: number[], period = 50): number => {
   return lastX.reduce((a, b) => a + b, 0) / period;
 };
 
-export async function fetchCandles(symbol: string, apiKey?: string) {
+export async function fetchCandles(symbol: string) {
   try {
-    const period1 = Math.floor(Date.now() / 1000) - (5 * 365 * 24 * 60 * 60); // 5 years back
+    const period1 = Math.floor(Date.now() / 1000) - (15 * 365 * 24 * 60 * 60); // 15 years back for accurate RSI
     
     console.log(`[YAHOO] Fetching chart for ${symbol}...`);
     const result = await (yahooFinance as any).chart(symbol.toUpperCase(), {
@@ -77,16 +77,20 @@ export async function fetchCandles(symbol: string, apiKey?: string) {
       v: [] as number[],
     };
 
+    let lastTime = 0;
     result.quotes.forEach((quote: any) => {
-      // Filter out invalid/null quotes
+      // Filter out invalid/null quotes and strictly increasing timestamps to avoid lightweight-charts errors
       if (quote && quote.close !== null && quote.date) {
-        // quote.date is a Date object or ISO string in v3
-        candles.t.push(Math.floor(new Date(quote.date).getTime() / 1000));
-        candles.o.push(quote.open ?? quote.close ?? 0);
-        candles.h.push(quote.high ?? quote.close ?? 0);
-        candles.l.push(quote.low ?? quote.close ?? 0);
-        candles.c.push(quote.close ?? 0);
-        candles.v.push(quote.volume ?? 0);
+        const time = Math.floor(new Date(quote.date).getTime() / 1000);
+        if (time > lastTime) {
+          candles.t.push(time);
+          candles.o.push(quote.open ?? quote.close ?? 0);
+          candles.h.push(quote.high ?? quote.close ?? 0);
+          candles.l.push(quote.low ?? quote.close ?? 0);
+          candles.c.push(quote.close ?? 0);
+          candles.v.push(quote.volume ?? 0);
+          lastTime = time;
+        }
       }
     });
 
@@ -116,6 +120,9 @@ export const calculateRSIHistory = (prices: number[], period = 14): { time: numb
   let avgGain = gains / period;
   let avgLoss = losses / period;
 
+  let rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  results.push({ time: period, value: Number((100 - 100 / (1 + rs)).toFixed(2)) });
+
   for (let i = period + 1; i < prices.length; i++) {
     const change = prices[i] - prices[i - 1];
     let gain = 0;
@@ -126,7 +133,7 @@ export const calculateRSIHistory = (prices: number[], period = 14): { time: numb
     avgGain = (avgGain * (period - 1) + gain) / period;
     avgLoss = (avgLoss * (period - 1) + loss) / period;
 
-    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
     results.push({ time: i, value: Number((100 - 100 / (1 + rs)).toFixed(2)) });
   }
 
@@ -147,9 +154,9 @@ export const calculateSMAData = (data: { time: number, value: number }[], period
   return results;
 };
 
-export async function fetchStockReport(symbol: string, apiKey: string): Promise<StockData | null> {
+export async function fetchStockReport(symbol: string): Promise<StockData | null> {
   try {
-    const data = await fetchCandles(symbol, apiKey) as any;
+    const data = await fetchCandles(symbol) as any;
 
     if (data.s !== 'ok' || !data.c || data.c.length < 50) {
       console.error(`Incomplete data for ${symbol}:`, data);

@@ -22,7 +22,6 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasApiKey, setHasApiKey] = useState(true); // Default to true to prevent flicker, useEffect will verify
 
   const [chartHeightPercent, setChartHeightPercent] = useState(70);
   const isDragging = useRef(false);
@@ -60,10 +59,7 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
     };
   }, []);
 
-  useEffect(() => {
-    // Check for API key on mount (client-side only)
-    setHasApiKey(!!localStorage.getItem('finnhub_api_key'));
-  }, []);
+
 
   useEffect(() => {
     if (!chartContainerRef.current || !rsiContainerRef.current) return;
@@ -177,14 +173,6 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
     const fetchData = async () => {
       if (typeof window === 'undefined') return;
       
-      const apiKey = localStorage.getItem('finnhub_api_key');
-      if (!apiKey) {
-        setHasApiKey(false);
-        setError('API Key is missing. Click the settings icon to add it.');
-        return;
-      }
-      setHasApiKey(true);
-
       setLoading(true);
       setError(null);
 
@@ -193,7 +181,7 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
         const response = await fetch('/api/candles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol, apiKey }),
+          body: JSON.stringify({ symbol }),
         });
 
         const data = await response.json();
@@ -255,20 +243,15 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
       </div>
 
       <div className="flex-1 relative bg-[#05070A]">
-        {(error || !hasApiKey) && (
+        {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#05070A] z-20 text-center p-8">
-            <AlertCircle className="w-12 h-12 text-indigo-500/40 mb-6" />
+            <AlertCircle className="w-12 h-12 text-rose-500/40 mb-6" />
             <h3 className="text-white font-bold mb-3 uppercase text-xs tracking-[0.2em]">
-              {!hasApiKey ? 'API Key Required' : 'Engine Standby'}
+              Data Fetch Error
             </h3>
             <p className="text-slate-500 text-xs max-w-xs mb-8 leading-relaxed italic">
-              {error || 'The charting engine is waiting for your Finnhub API key to authenticate market data streams.'}
+              {error}
             </p>
-            {!hasApiKey && (
-              <div className="px-6 py-3 bg-indigo-500/10 border border-indigo-500/30 rounded-full text-[10px] text-indigo-400 font-black uppercase tracking-widest ring-1 ring-indigo-500/20">
-                Click Settings Icon to Add Key
-              </div>
-            )}
           </div>
         )}
 
