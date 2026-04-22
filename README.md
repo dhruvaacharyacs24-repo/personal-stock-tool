@@ -1,16 +1,15 @@
 # GravityScan: Automated AI Stock Analyzer
 
-GravityScan is a high-performance, real-time technical stock screener and charting dashboard designed to track global markets (specifically heavily optimized for the Indian NSE/BSE markets). The application leverages a sleek dark-mode aesthetic to surface algorithmic buy signals based on deep weekly RSI screening and structural price trends.
+GravityScan is a high-performance, real-time technical stock screener and charting dashboard designed to track Indian NSE/BSE markets. The application leverages a sleek dark-mode aesthetic to surface algorithmic buy signals based on deep weekly RSI screening and structural price trends.
 
 ## ✨ Core Features
 
-* **Dynamic RSI Stock Screener**: Enter a list of stocks to monitor. The engine evaluates their Weekly Relative Strength Index (RSI), applies liquidity filters (100K+ shares), and surfaces the absolute most oversold, fundamentally sound "Alpha Selection."
-* **Advanced Charting Engine**: Integrated with TradingView's Lightweight Charts, displaying up to 5-years of historical candlestick data at a time.
+* **Nifty 50 Scanner**: Instantly evaluate the Nifty 50 index. The engine evaluates their Weekly Relative Strength Index (RSI), applies liquidity filters (100K+ shares), and surfaces the absolute most oversold, fundamentally sound "Alpha Selection."
+* **Advanced Charting Engine**: Integrated with TradingView's Lightweight Charts, displaying up to 15-years of historical candlestick data at a time for highly accurate RSI calculations.
 * **Volume Overlays**: Intelligent, color-coded volume histograms dynamically sit natively within the lowest 20% overlay of the main price chart.
 * **Dual-Pane Resizable Layout**: Inspect momentum with an independent RSI timeline panel. You can easily click and drag the horizontal splitter to adjust the sizes of your price chart and RSI indicator in real time.
-* **Smart Autocomplete Watchlist**: Need to add a symbol? Typing just the company name will trigger live, debounced search suggestions directly pulled from Yahoo Finance to append into your watchlist immediately.
 * **Premium Glassmorphic UI**: High-end styling featuring glowing typography, dynamic background blurs, interactive micro-animations via Framer Motion, and distinct neon drop shadows.
-* **Local Persistence**: Completely serverless backend. Your watchlist, cached charts, and API keys are seamlessly encrypted and persisted locally inside the browser.
+* **Completely Free Backend**: Powered by Yahoo Finance, requiring zero API keys to operate.
 
 ## 🛠 Tech Stack
 
@@ -42,13 +41,7 @@ npm install
 npm run dev
 ```
 
-4. Navigate to `http://localhost:3000`. You will be prompted to enter your API configuration in the dashboard settings to activate the real-time scanning engines.
-
-## 📈 Roadmap
-
-- [ ] Email notifications mapping when a Watchlist ticker hits critical oversold metrics.
-- [ ] Incorporate MACD and Bollinger Band charting layers.
-- [ ] Connect custom WebHooks for external algorithmic executions.
+4. Navigate to `http://localhost:3000`. Click "RUN SCAN" to immediately see the top Nifty 50 opportunities.
 
 ## 📎 License & Ownership
 
