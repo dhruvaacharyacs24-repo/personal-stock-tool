@@ -2,7 +2,7 @@
 
 GravityScan is a high-performance, real-time technical stock screener and charting dashboard designed to track Indian NSE/BSE markets. The application leverages a sleek dark-mode aesthetic to surface algorithmic buy signals based on deep weekly RSI screening and structural price trends.
 
-##Deployed using Vercel: https://personal-stock-tool.vercel.app/
+## Deployed using Vercel: https://personal-stock-tool.vercel.app/
 
 ## ✨ Core Features
 
