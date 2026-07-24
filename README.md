@@ -2,6 +2,8 @@
 
 GravityScan is a high-performance, real-time technical stock screener and charting dashboard designed to track Indian NSE/BSE markets. The application leverages a sleek dark-mode aesthetic to surface algorithmic buy signals based on deep weekly RSI screening and structural price trends.
 
+##Deployed using Vercel: https://personal-stock-tool.vercel.app/
+
 ## ✨ Core Features
 
 * **Nifty 50 Scanner**: Instantly evaluate the Nifty 50 index. The engine evaluates their Weekly Relative Strength Index (RSI), applies liquidity filters (100K+ shares), and surfaces the absolute most oversold, fundamentally sound "Alpha Selection."
