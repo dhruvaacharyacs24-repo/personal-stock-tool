@@ -7,10 +7,12 @@ import { AlertTriangle, CheckCircle2, TrendingUp, Activity, BarChart2 } from 'lu
 interface ResultDisplayProps {
   data: StockData[] | null;
   loading: boolean;
+  selectedSymbol: string | null;
+  onSelectStock: (symbol: string) => void;
   onViewChart: (symbol: string) => void;
 }
 
-export default function ResultDisplay({ data, loading, onViewChart }: ResultDisplayProps) {
+export default function ResultDisplay({ data, loading, selectedSymbol, onSelectStock, onViewChart }: ResultDisplayProps) {
   if (loading) {
     return (
       <div className="w-full h-full min-h-[400px] flex items-center justify-center bg-[#0F1219]/40 border border-white/5 rounded-2xl">
@@ -50,13 +52,15 @@ export default function ResultDisplay({ data, loading, onViewChart }: ResultDisp
         </div>
       </div>
 
-      {data.map((stock, idx) => (
+      {data.map((stock, idx) => {
+        const isSelected = stock.symbol === selectedSymbol;
+        return (
         <motion.div
           key={stock.symbol}
           initial={{ opacity: 0, scale: 0.98, x: -20 }}
           animate={{ opacity: 1, scale: 1, x: 0 }}
           transition={{ delay: idx * 0.08 }}
-          className="w-full rounded-2xl border border-white/10 bg-gradient-to-br from-[#121722] via-[#0D1118] to-[#0A0D14] p-4 shadow-[0_10px_40px_rgba(0,0,0,0.25)]"
+          className={`w-full rounded-2xl border p-4 shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all ${isSelected ? 'border-indigo-500/50 bg-gradient-to-br from-indigo-500/15 via-[#121722] to-[#0A0D14]' : 'border-white/10 bg-gradient-to-br from-[#121722] via-[#0D1118] to-[#0A0D14]'}`}
         >
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1">
@@ -87,15 +91,24 @@ export default function ResultDisplay({ data, loading, onViewChart }: ResultDisp
               </div>
             </div>
 
-            <button
-              onClick={() => onViewChart(stock.symbol)}
-              className="w-full lg:w-auto rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.25em] text-indigo-200 transition hover:bg-indigo-500/25"
-            >
-              View Chart
-            </button>
+            <div className="flex w-full flex-col gap-2 lg:w-auto">
+              <button
+                onClick={() => onSelectStock(stock.symbol)}
+                className="rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.25em] text-indigo-200 transition hover:bg-indigo-500/25"
+              >
+                {isSelected ? 'Selected' : 'Analyze'}
+              </button>
+              <button
+                onClick={() => onViewChart(stock.symbol)}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.25em] text-slate-300 transition hover:bg-white/10"
+              >
+                View Chart
+              </button>
+            </div>
           </div>
         </motion.div>
-      ))}
+        );
+      })}
     </div>
   );
 }

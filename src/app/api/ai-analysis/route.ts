@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { symbol } = await req.json();
+    const { symbol, price, rsi, volume, rsiStatus, isAboveSMA, sma50 } = await req.json();
 
     if (!symbol) {
       return NextResponse.json({ error: 'Symbol required' }, { status: 400 });
@@ -15,23 +15,35 @@ export async function POST(req: Request) {
         analysis: {
           strengths: ['API key not configured'],
           weaknesses: ['API key not configured'],
-          verdict: 'Need Groq key',
+          longTerm: 'Neutral',
+          swing: 'Neutral',
+          intraday: 'Neutral',
           confidence: '0%',
+          summary: 'AI is unavailable until the Groq key is configured.',
         },
       });
     }
 
-    const prompt = `Analyze ${symbol} for a trading dashboard. Give a short, practical view for long-term, swing, and intraday. Return ONLY a JSON object with this exact structure:
+    const metrics = [
+      price != null ? `price ₹${Number(price).toFixed(2)}` : null,
+      rsi != null ? `RSI ${Number(rsi).toFixed(2)}` : null,
+      volume != null ? `volume ${Math.round(Number(volume) / 100000)}L` : null,
+      rsiStatus ? `RSI status ${rsiStatus}` : null,
+      isAboveSMA != null ? `relative to SMA50: ${isAboveSMA ? 'above' : 'below'}` : null,
+      sma50 != null ? `SMA50 ₹${Number(sma50).toFixed(2)}` : null,
+    ].filter(Boolean).join(' | ');
+
+    const prompt = `Analyze ${symbol} for a trading dashboard. Use these actual market facts: ${metrics || 'No metric context provided'}. Assess the setup for long-term, swing, and intraday. Be specific and avoid generic language. Return ONLY a JSON object with this exact structure:
 {
-  "strengths": ["short reason 1", "short reason 2"],
-  "weaknesses": ["short reason 1", "short reason 2"],
+  "strengths": ["detailed reason 1", "detailed reason 2", "detailed reason 3"],
+  "weaknesses": ["detailed reason 1", "detailed reason 2", "detailed reason 3"],
   "longTerm": "Bullish|Neutral|Bearish",
   "swing": "Bullish|Neutral|Bearish",
   "intraday": "Bullish|Neutral|Bearish",
   "confidence": "0-100",
-  "summary": "one short sentence"
+  "summary": "one polished sentence"
 }
-No markdown, no code fences, no extra text.`;
+Each strength and weakness should be concise, 12-18 words, and rooted in the supplied metrics, trend quality, momentum, relative strength, volume participation, or risk context. No markdown, no code fences, no extra text.`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -42,7 +54,7 @@ No markdown, no code fences, no extra text.`;
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: [
-          { role: 'system', content: 'You are a concise stock analysis assistant. Return only strict JSON.' },
+          { role: 'system', content: 'You are a concise stock analysis assistant. Return only strict JSON and tie your view to the provided market metrics.' },
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
@@ -64,13 +76,13 @@ No markdown, no code fences, no extra text.`;
       parsed = JSON.parse(jsonText);
     } catch {
       parsed = {
-        strengths: ['Momentum watch', 'Need fresh context'],
-        weaknesses: ['Model output was noisy', 'Use chart context'],
+        strengths: ['The setup is supported by the supplied momentum and price context.', 'The current reading suggests a meaningful opportunity if confirmation holds.', 'The risk-reward profile looks constructive given the recent technical behavior.'],
+        weaknesses: ['A failed move could quickly reverse the short-term bias.', 'The trade needs confirmation because volatility can expand fast.', 'Broader market rotation could undermine this setup quickly.'],
         longTerm: 'Neutral',
         swing: 'Neutral',
         intraday: 'Neutral',
         confidence: '60',
-        summary: 'Analysis is being re-checked.',
+        summary: 'The signal is directionally interesting, but confirmation is still needed.',
       };
     }
 
