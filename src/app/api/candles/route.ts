@@ -14,9 +14,9 @@ export async function POST(req: Request) {
     console.log(`[API] Yahoo response status: ${data.s}`);
 
     if (data.s !== 'ok' || !data.c) {
-      console.error(`[API] Finnhub error for ${symbol}:`, data);
+      console.error(`[API] Yahoo Finance error for ${symbol}:`, data);
       const msg = data.s === 'no_data' ? 'No history available for this market.' : (data.msg || data.s || 'Invalid response');
-      return NextResponse.json({ error: `Finnhub: ${msg}` }, { status: 400 });
+      return NextResponse.json({ error: `Yahoo Finance: ${msg}` }, { status: 400 });
     }
 
     const candles = data.t.map((time: number, i: number) => ({

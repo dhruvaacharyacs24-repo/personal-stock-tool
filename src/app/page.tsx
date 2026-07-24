@@ -42,6 +42,8 @@ export default function Dashboard() {
     summary: string;
   } | null>(null);
   const [fundamentals, setFundamentals] = useState<FundamentalSnapshot | null>(null);
+  const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   useEffect(() => {
     const savedResult = localStorage.getItem('last_scan_result_v2');
@@ -94,6 +96,7 @@ export default function Dashboard() {
     const stock = topStocks.find((item) => item.symbol === symbol);
     setAnalysisLoading(true);
     setAnalysis(null);
+    setAnalysisError(null);
 
     try {
       const response = await fetch('/api/ai-analysis', {
@@ -113,9 +116,12 @@ export default function Dashboard() {
       const data = await response.json();
       if (data.analysis) {
         setAnalysis(data.analysis);
+      } else if (data.error) {
+        setAnalysisError(data.error);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Analysis failed:', error);
+      setAnalysisError(error.message || 'AI analysis failed.');
     } finally {
       setAnalysisLoading(false);
     }
@@ -124,6 +130,7 @@ export default function Dashboard() {
   const handleLoadFundamentals = async (symbol: string) => {
     setFundamentalsLoading(true);
     setFundamentals(null);
+    setFundamentalsError(null);
     try {
       const response = await fetch('/api/fundamentals', {
         method: 'POST',
@@ -133,9 +140,15 @@ export default function Dashboard() {
       const data = await response.json();
       if (data.snapshot) {
         setFundamentals(data.snapshot);
+        setFundamentalsError(null);
+      } else if (data.error) {
+        setFundamentalsError(data.error);
+      } else {
+        setFundamentalsError('No fundamental data returned for this stock.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fundamentals failed:', error);
+      setFundamentalsError(error.message || 'Failed to load fundamentals data.');
     } finally {
       setFundamentalsLoading(false);
     }
@@ -328,6 +341,11 @@ export default function Dashboard() {
 
                 {fundamentalsLoading ? (
                   <div className="text-sm text-slate-500">Loading fundamentals...</div>
+                ) : fundamentalsError ? (
+                  <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-300">
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-rose-400 mb-1">API Error</div>
+                    {fundamentalsError}
+                  </div>
                 ) : fundamentals ? (
                   <div className="space-y-4 text-[12px] text-slate-300">
                     <div className="grid grid-cols-2 gap-3">

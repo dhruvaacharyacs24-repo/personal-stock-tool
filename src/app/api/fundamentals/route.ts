@@ -6,13 +6,25 @@ export async function POST(req: Request) {
     const { symbol } = await req.json();
 
     if (!symbol) {
-      return NextResponse.json({ error: 'Symbol required' }, { status: 400 });
+      return NextResponse.json({ error: 'Symbol required', snapshot: null }, { status: 400 });
     }
 
     const snapshot = await fetchFundamentalSnapshot(symbol);
-    return NextResponse.json({ snapshot });
-  } catch (error) {
+    
+    // If snapshot has an error property, include it
+    if (snapshot && (snapshot as any).error) {
+      return NextResponse.json({ 
+        snapshot: null, 
+        error: (snapshot as any).error 
+      });
+    }
+
+    return NextResponse.json({ snapshot, error: null });
+  } catch (error: any) {
     console.error('Fundamentals API error:', error);
-    return NextResponse.json({ error: 'Fundamentals fetch failed' }, { status: 500 });
+    return NextResponse.json({ 
+      snapshot: null, 
+      error: error.message || 'Fundamentals fetch failed' 
+    }, { status: 500 });
   }
 }

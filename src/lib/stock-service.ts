@@ -85,11 +85,15 @@ export const calculateSMA = (prices: number[], period = 50): number => {
   return lastX.reduce((a, b) => a + b, 0) / period;
 };
 
-export async function fetchFundamentalSnapshot(symbol: string): Promise<FundamentalSnapshot | null> {
+export async function fetchFundamentalSnapshot(symbol: string): Promise<FundamentalSnapshot & { error?: string } | null> {
   try {
     const result = await (yahooFinance as any).quoteSummary(symbol.toUpperCase(), {
-      modules: ['summaryProfile', 'defaultKeyStatistics', 'financialData', 'earnings', 'price'],
+      modules: ['summaryProfile', 'defaultKeyStatistics', 'financialData', 'earnings', 'price', 'majorHoldersBreakdown'],
     });
+
+    // Log which modules were actually returned for debugging
+    const returnedModules = Object.keys(result || {}).filter(k => result[k] != null);
+    console.log(`[FUNDAMENTALS] Modules returned for ${symbol}:`, returnedModules);
 
     const summaryProfile = result?.summaryProfile || {};
     const stats = result?.defaultKeyStatistics || {};
@@ -100,39 +104,53 @@ export async function fetchFundamentalSnapshot(symbol: string): Promise<Fundamen
 
     const currentPrice = priceData?.regularMarketPrice ?? financialData?.currentPrice ?? null;
     const trailingEps = stats?.trailingEps ?? stats?.forwardEps ?? null;
-    const pe = currentPrice && trailingEps ? Number((currentPrice / trailingEps).toFixed(2)) : (stats?.forwardPE != null ? Number(stats.forwardPE.toFixed(2)) : null);
-    const pb = stats?.priceToBook != null ? Number(stats.priceToBook.toFixed(2)) : null;
-    const eps = trailingEps != null ? Number(trailingEps.toFixed(2)) : (stats?.forwardEps != null ? Number(stats.forwardEps.toFixed(2)) : null);
+    const pe = currentPrice && trailingEps ? Number((currentPrice / trailingEps).toFixed(2)) : (stats?.forwardPE != null ? Number(Number(stats.forwardPE).toFixed(2)) : null);
+    const pb = stats?.priceToBook != null ? Number(Number(stats.priceToBook).toFixed(2)) : null;
+    const eps = trailingEps != null ? Number(Number(trailingEps).toFixed(2)) : (stats?.forwardEps != null ? Number(Number(stats.forwardEps).toFixed(2)) : null);
 
     const bookValue = stats?.bookValue ?? null;
     const netIncomeToCommon = stats?.netIncomeToCommon ?? null;
     const sharesOutstanding = stats?.sharesOutstanding ?? null;
     const roe = bookValue && netIncomeToCommon && sharesOutstanding
       ? Number(((netIncomeToCommon / (bookValue * sharesOutstanding)) * 100).toFixed(2))
-      : (financialData?.returnOnEquity != null ? Number(financialData.returnOnEquity.toFixed(2)) : null);
+      : (financialData?.returnOnEquity != null ? Number(Number(financialData.returnOnEquity).toFixed(2)) : null);
 
-    const operatingMargin = financialData?.operatingMargins != null ? Number((financialData.operatingMargins * 100).toFixed(2)) : null;
-    const netMargin = financialData?.profitMargins != null ? Number((financialData.profitMargins * 100).toFixed(2)) : null;
-    const salesGrowth = financialData?.revenueGrowth != null ? Number((financialData.revenueGrowth * 100).toFixed(2)) : null;
-    const profitGrowth = financialData?.earningsGrowth != null ? Number((financialData.earningsGrowth * 100).toFixed(2)) : null;
-    const debtToEquity = financialData?.debtToEquity != null ? Number(financialData.debtToEquity.toFixed(2)) : null;
+    // Calculate ROCE: EBIT / (Total Assets - Current Liabilities)
+    // yahoo-finance2 v3.x may return ebitda and totalRevenue in financialData
+    const ebit = financialData?.ebit != null ? financialData.ebit : (financialData?.ebitda != null ? financialData.ebitda : null);
+    const totalAssets = stats?.totalAssets ?? null;
+    const currentLiabilities = stats?.currentLiabilities ?? null;
+    const roce = ebit != null && totalAssets != null && currentLiabilities != null
+      ? Number(((ebit / (totalAssets - currentLiabilities)) * 100).toFixed(2))
+      : (financialData?.returnOnCapital != null ? Number(Number(financialData.returnOnCapital).toFixed(2)) : null);
+
+    const operatingMargin = financialData?.operatingMargins != null ? Number((Number(financialData.operatingMargins) * 100).toFixed(2)) : null;
+    const netMargin = financialData?.profitMargins != null ? Number((Number(financialData.profitMargins) * 100).toFixed(2)) : null;
+    const salesGrowth = financialData?.revenueGrowth != null ? Number((Number(financialData.revenueGrowth) * 100).toFixed(2)) : null;
+    const profitGrowth = financialData?.earningsGrowth != null ? Number((Number(financialData.earningsGrowth) * 100).toFixed(2)) : null;
+    const debtToEquity = financialData?.debtToEquity != null ? Number(Number(financialData.debtToEquity).toFixed(2)) : null;
 
     const quarterly = earningsData?.earningsChart?.quarterly || [];
     const latestQuarter = quarterly[0] || null;
     const previousQuarter = quarterly[1] || null;
 
-    const latestRevenue = latestQuarter?.revenue ?? null;
-    const previousRevenue = previousQuarter?.revenue ?? null;
-    const latestProfit = latestQuarter?.earnings ?? null;
-    const previousProfit = previousQuarter?.earnings ?? null;
-    const latestMargin = latestQuarter?.profitMargin != null ? Number((latestQuarter.profitMargin * 100).toFixed(2)) : null;
-    const previousMargin = previousQuarter?.profitMargin != null ? Number((previousQuarter.profitMargin * 100).toFixed(2)) : null;
+    const latestRevenue = latestQuarter?.revenue != null ? Number(latestQuarter.revenue) : null;
+    const previousRevenue = previousQuarter?.revenue != null ? Number(previousQuarter.revenue) : null;
+    const latestProfit = latestQuarter?.earnings != null ? Number(latestQuarter.earnings) : null;
+    const previousProfit = previousQuarter?.earnings != null ? Number(previousQuarter.earnings) : null;
+    const latestMargin = latestQuarter?.profitMargin != null ? Number((Number(latestQuarter.profitMargin) * 100).toFixed(2)) : null;
+    const previousMargin = previousQuarter?.profitMargin != null ? Number((Number(previousQuarter.profitMargin) * 100).toFixed(2)) : null;
     const revenueGrowthQoQ = latestRevenue && previousRevenue ? Number((((latestRevenue - previousRevenue) / previousRevenue) * 100).toFixed(2)) : null;
     const profitGrowthQoQ = latestProfit && previousProfit ? Number((((latestProfit - previousProfit) / previousProfit) * 100).toFixed(2)) : null;
     const marginDelta = latestMargin != null && previousMargin != null ? Number((latestMargin - previousMargin).toFixed(2)) : null;
-    const surprisePct = latestQuarter?.surprisePct != null ? Number(latestQuarter.surprisePct.toFixed(2)) : null;
-    const promoterHolding = majorHolders?.insidersPercentHeld != null ? Number((majorHolders.insidersPercentHeld * 100).toFixed(2)) : null;
-    const fiiDiiHolding = majorHolders?.institutionsPercentHeld != null ? Number((majorHolders.institutionsPercentHeld * 100).toFixed(2)) : null;
+    const surprisePct = latestQuarter?.surprisePct != null ? Number(Number(latestQuarter.surprisePct).toFixed(2)) : null;
+    
+    // yahoo-finance2 v3.x majorHoldersBreakdown uses different field names
+    // Try multiple naming conventions found across yahoo-finance2 versions
+    const promoterHoldingRaw = majorHolders?.insidersPercentHeld ?? majorHolders?.insiderPercentHeld ?? majorHolders?.insiderHoldersPercent ?? null;
+    const promoterHolding = promoterHoldingRaw != null ? Number((promoterHoldingRaw * 100).toFixed(2)) : null;
+    const fiiDiiHoldingRaw = majorHolders?.institutionsPercentHeld ?? majorHolders?.institutionPercentHeld ?? majorHolders?.institutionHoldingsPercent ?? null;
+    const fiiDiiHolding = fiiDiiHoldingRaw != null ? Number((fiiDiiHoldingRaw * 100).toFixed(2)) : null;
 
     let rating = 0;
     if (pe != null && pe < 30) rating += 1;
@@ -154,7 +172,7 @@ export async function fetchFundamentalSnapshot(symbol: string): Promise<Fundamen
       pb,
       eps,
       roe,
-      roce: null,
+      roce,
       debtToEquity,
       operatingMargin,
       netMargin,
