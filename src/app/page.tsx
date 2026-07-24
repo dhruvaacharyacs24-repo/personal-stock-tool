@@ -316,6 +316,12 @@ export default function Dashboard() {
                       Select a stock from the scan results to view a focused AI readout and confidence score.
                     </div>
                   )}
+                  {analysisError && (
+                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-300">
+                      <div className="text-[10px] uppercase tracking-[0.25em] text-rose-400 mb-1">Analysis Error</div>
+                      {analysisError}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -399,14 +405,34 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-slate-200">
+<div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-slate-200">
                       <div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-emerald-300">AI summary</div>
                       <div className="text-sm leading-6">
-                        {fundamentals.earnings.revenueGrowthQoQ != null && fundamentals.earnings.revenueGrowthQoQ > 0 ? 'Revenue is trending upward, showing healthy demand momentum.' : 'Revenue trend needs close monitoring before calling it durable.'}
+                        {fundamentals.earnings.revenueGrowthQoQ != null && fundamentals.earnings.revenueGrowthQoQ > 15 
+                          ? 'Revenue surged quarter-over-quarter, indicating strong demand acceleration and robust top-line momentum that could drive analyst upgrades.' 
+                          : fundamentals.earnings.revenueGrowthQoQ != null && fundamentals.earnings.revenueGrowthQoQ > 0 
+                            ? 'Revenue is trending upward, showing healthy demand momentum with room for further acceleration if macro conditions remain supportive.' 
+                            : 'Revenue trend needs close monitoring before calling it durable — watch for a catalyst-driven reversal in the coming quarters.'}
                         {' '}
-                        {fundamentals.earnings.profitGrowthQoQ != null && fundamentals.earnings.profitGrowthQoQ > 0 ? 'Profit growth is constructive and supports a stronger earnings profile.' : 'Profit growth remains uneven and warrants caution.'}
+                        {fundamentals.earnings.profitGrowthQoQ != null && fundamentals.earnings.profitGrowthQoQ > 15 
+                          ? 'Profit growth is accelerating sharply, driven by operating leverage and cost discipline, which strengthens the earnings quality narrative.' 
+                          : fundamentals.earnings.profitGrowthQoQ != null && fundamentals.earnings.profitGrowthQoQ > 0 
+                            ? 'Profit growth is constructive and supports a stronger earnings profile, though sustainability depends on top-line continuity.' 
+                            : 'Profit growth remains uneven and warrants caution — focus on margin trajectory and working capital efficiency for signs of structural improvement.'}
                         {' '}
-                        {fundamentals.earnings.marginDelta != null && fundamentals.earnings.marginDelta < 0 ? 'Margins are under pressure, which can affect near-term sentiment.' : 'Margins are holding up reasonably well.'}
+                        {fundamentals.earnings.marginDelta != null && fundamentals.earnings.marginDelta < -2 
+                          ? 'Margins are compressing meaningfully, signaling cost headwinds or pricing pressure that could weigh on near-term valuation multiples.' 
+                          : fundamentals.earnings.marginDelta != null && fundamentals.earnings.marginDelta < 0 
+                            ? 'Margins are under modest pressure, which can affect near-term sentiment if the trend continues for another quarter.' 
+                            : 'Margins are holding up reasonably well, reflecting operational stability and pricing power in the current environment.'}
+                        {' '}
+                        {fundamentals.earnings.surprisePct != null && fundamentals.earnings.surprisePct > 5 
+                          ? `The company delivered a ${fundamentals.earnings.surprisePct}% earnings surprise, beating expectations convincingly and signaling potential momentum for the next quarter.` 
+                          : fundamentals.earnings.surprisePct != null && fundamentals.earnings.surprisePct > 0 
+                            ? `A ${fundamentals.earnings.surprisePct}% earnings beat reflects operational execution, though the magnitude suggests room for improvement.` 
+                            : fundamentals.earnings.surprisePct != null 
+                              ? `The ${Math.abs(fundamentals.earnings.surprisePct)}% earnings miss raises concerns about guidance credibility and near-term growth trajectory.` 
+                              : ''}
                       </div>
                     </div>
                   </div>

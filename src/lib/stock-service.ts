@@ -130,20 +130,66 @@ export async function fetchFundamentalSnapshot(symbol: string): Promise<Fundamen
     const profitGrowth = financialData?.earningsGrowth != null ? Number((Number(financialData.earningsGrowth) * 100).toFixed(2)) : null;
     const debtToEquity = financialData?.debtToEquity != null ? Number(Number(financialData.debtToEquity).toFixed(2)) : null;
 
-    const quarterly = earningsData?.earningsChart?.quarterly || [];
-    const latestQuarter = quarterly[0] || null;
-    const previousQuarter = quarterly[1] || null;
+// Debug: log the raw earnings data structure to understand v3.x format
+    console.log(`[FUNDAMENTALS] Raw earnings keys for ${symbol}:`, Object.keys(earningsData || {}));
+    if (earningsData?.earningsChart) {
+      console.log(`[FUNDAMENTALS] earningsChart keys:`, Object.keys(earningsData.earningsChart));
+    }
+    if (earningsData?.financialsChart) {
+      console.log(`[FUNDAMENTALS] financialsChart keys:`, Object.keys(earningsData.financialsChart));
+    }
+    if (earningsData?.financialsChart?.quarterly?.length > 0) {
+      console.log(`[FUNDAMENTALS] financialsChart.quarterly[0] keys:`, Object.keys(earningsData.financialsChart.quarterly[0]));
+      console.log(`[FUNDAMENTALS] financialsChart.quarterly[0] data:`, JSON.stringify(earningsData.financialsChart.quarterly[0]).slice(0, 400));
+    }
 
-    const latestRevenue = latestQuarter?.revenue != null ? Number(latestQuarter.revenue) : null;
-    const previousRevenue = previousQuarter?.revenue != null ? Number(previousQuarter.revenue) : null;
-    const latestProfit = latestQuarter?.earnings != null ? Number(latestQuarter.earnings) : null;
-    const previousProfit = previousQuarter?.earnings != null ? Number(previousQuarter.earnings) : null;
-    const latestMargin = latestQuarter?.profitMargin != null ? Number((Number(latestQuarter.profitMargin) * 100).toFixed(2)) : null;
-    const previousMargin = previousQuarter?.profitMargin != null ? Number((Number(previousQuarter.profitMargin) * 100).toFixed(2)) : null;
+    // Get EPS/estimate data from earningsChart.quarterly
+    let epsQuarterly: any[] = [];
+    let latestEpsQuarter: any = null;
+    let previousEpsQuarter: any = null;
+    if (earningsData?.earningsChart?.quarterly?.length > 0) {
+      epsQuarterly = earningsData.earningsChart.quarterly;
+      latestEpsQuarter = epsQuarterly[0] || null;
+      previousEpsQuarter = epsQuarterly[1] || null;
+    }
+
+    // Get revenue/profit data from financialsChart.quarterly (v3.x)
+    let financialQuarterly: any[] = [];
+    let latestFinancialQuarter: any = null;
+    let previousFinancialQuarter: any = null;
+    if (earningsData?.financialsChart?.quarterly?.length > 0) {
+      financialQuarterly = earningsData.financialsChart.quarterly;
+      latestFinancialQuarter = financialQuarterly[0] || null;
+      previousFinancialQuarter = financialQuarterly[1] || null;
+    }
+
+    // Extract revenue from financials data
+    const latestRevenue = latestFinancialQuarter?.revenue != null ? Number(latestFinancialQuarter.revenue) 
+      : latestFinancialQuarter?.totalRevenue != null ? Number(latestFinancialQuarter.totalRevenue)
+      : null;
+    const previousRevenue = previousFinancialQuarter?.revenue != null ? Number(previousFinancialQuarter.revenue)
+      : previousFinancialQuarter?.totalRevenue != null ? Number(previousFinancialQuarter.totalRevenue)
+      : null;
+    const latestProfit = latestFinancialQuarter?.earnings != null ? Number(latestFinancialQuarter.earnings)
+      : latestFinancialQuarter?.netIncome != null ? Number(latestFinancialQuarter.netIncome)
+      : latestFinancialQuarter?.profit != null ? Number(latestFinancialQuarter.profit)
+      : null;
+    const previousProfit = previousFinancialQuarter?.earnings != null ? Number(previousFinancialQuarter.earnings)
+      : previousFinancialQuarter?.netIncome != null ? Number(previousFinancialQuarter.netIncome)
+      : previousFinancialQuarter?.profit != null ? Number(previousFinancialQuarter.profit)
+      : null;
+    const latestMargin = latestFinancialQuarter?.profitMargin != null ? Number((Number(latestFinancialQuarter.profitMargin) * 100).toFixed(2))
+      : latestFinancialQuarter?.margin != null ? Number((Number(latestFinancialQuarter.margin) * 100).toFixed(2))
+      : null;
+    const previousMargin = previousFinancialQuarter?.profitMargin != null ? Number((Number(previousFinancialQuarter.profitMargin) * 100).toFixed(2))
+      : previousFinancialQuarter?.margin != null ? Number((Number(previousFinancialQuarter.margin) * 100).toFixed(2))
+      : null;
     const revenueGrowthQoQ = latestRevenue && previousRevenue ? Number((((latestRevenue - previousRevenue) / previousRevenue) * 100).toFixed(2)) : null;
     const profitGrowthQoQ = latestProfit && previousProfit ? Number((((latestProfit - previousProfit) / previousProfit) * 100).toFixed(2)) : null;
     const marginDelta = latestMargin != null && previousMargin != null ? Number((latestMargin - previousMargin).toFixed(2)) : null;
-    const surprisePct = latestQuarter?.surprisePct != null ? Number(Number(latestQuarter.surprisePct).toFixed(2)) : null;
+    const surprisePct = latestEpsQuarter?.surprisePct != null ? Number(Number(latestEpsQuarter.surprisePct).toFixed(2))
+      : latestEpsQuarter?.surprise != null ? Number(Number(latestEpsQuarter.surprise).toFixed(2))
+      : null;
     
     // yahoo-finance2 v3.x majorHoldersBreakdown uses different field names
     // Try multiple naming conventions found across yahoo-finance2 versions
@@ -185,7 +231,7 @@ export async function fetchFundamentalSnapshot(symbol: string): Promise<Fundamen
       industry: summaryProfile?.industry || null,
       currency: priceData?.currency || null,
       earnings: {
-        latestQuarterLabel: latestQuarter?.date || null,
+        latestQuarterLabel: latestFinancialQuarter?.date || latestEpsQuarter?.date || null,
         latestQuarterRevenue: latestRevenue,
         latestQuarterProfit: latestProfit,
         latestQuarterMargin: latestMargin,

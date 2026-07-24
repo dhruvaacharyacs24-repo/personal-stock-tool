@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const metrics = [
+const metrics = [
       price != null ? `price ₹${Number(price).toFixed(2)}` : null,
       rsi != null ? `RSI ${Number(rsi).toFixed(2)}` : null,
       volume != null ? `volume ${Math.round(Number(volume) / 100000)}L` : null,
@@ -33,17 +33,26 @@ export async function POST(req: Request) {
       sma50 != null ? `SMA50 ₹${Number(sma50).toFixed(2)}` : null,
     ].filter(Boolean).join(' | ');
 
-    const prompt = `Analyze ${symbol} for a trading dashboard. Use these actual market facts: ${metrics || 'No metric context provided'}. Assess the setup for long-term, swing, and intraday. Be specific and avoid generic language. Return ONLY a JSON object with this exact structure:
+    const prompt = `You are a senior equity research analyst at a top-tier investment bank. Analyze ${symbol} for a professional trading dashboard. Use these verified market facts: ${metrics || 'No metric context provided'}.
+
+Provide a comprehensive, detailed assessment covering:
+
+1. **Technical Setup** — Analyze the RSI reading, volume profile, and SMA50 position in detail. What do these collectively indicate about momentum and trend structure?
+2. **Risk/Reward** — What are the key support/resistance levels implied by the SMA50 and recent price action? Assess the risk/reward profile for each timeframe.
+3. **Timeframe Views** — Give very specific, nuanced views for long-term, swing, and intraday. Don't just say "Bullish" — explain the conviction level and conditions.
+4. **Catalysts** — What market conditions or technical triggers would confirm or invalidate the current setup?
+
+Return ONLY a JSON object with this exact structure (no markdown, no code fences):
 {
-  "strengths": ["detailed reason 1", "detailed reason 2", "detailed reason 3"],
-  "weaknesses": ["detailed reason 1", "detailed reason 2", "detailed reason 3"],
-  "longTerm": "Bullish|Neutral|Bearish",
-  "swing": "Bullish|Neutral|Bearish",
-  "intraday": "Bullish|Neutral|Bearish",
+  "strengths": ["strength 1 with specific metric reference and reasoning", "strength 2", "strength 3", "strength 4"],
+  "weaknesses": ["weakness 1 with specific metric reference and reasoning", "weakness 2", "weakness 3", "weakness 4"],
+  "longTerm": "Bullish|Neutral|Bearish with a brief 1-sentence explanation appended",
+  "swing": "Bullish|Neutral|Bearish with a brief 1-sentence explanation appended",
+  "intraday": "Bullish|Neutral|Bearish with a brief 1-sentence explanation appended",
   "confidence": "0-100",
-  "summary": "one polished sentence"
+  "summary": "A detailed 2-3 sentence summary that synthesizes the technical picture, risk factors, and actionable outlook."
 }
-Each strength and weakness should be concise, 12-18 words, and rooted in the supplied metrics, trend quality, momentum, relative strength, volume participation, or risk context. No markdown, no code fences, no extra text.`;
+Each strength and weakness must be 15-25 words, directly cite the supplied metrics, and explain the market implication. No generic language. Be specific and data-driven.`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',

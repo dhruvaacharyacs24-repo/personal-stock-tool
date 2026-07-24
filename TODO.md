@@ -1,28 +1,36 @@
-# Fix: Fundamental Analysis Not Loading
+# Fix: Fundamental Analysis Not Loading & Improve Analysis Quality
 
-## Steps:
+## Completed Steps:
 
-### 1. Fix `stock-service.ts` - `fetchFundamentalSnapshot()`
-- [x] Add `'majorHoldersBreakdown'` to the requested modules array
-- [x] Fix `majorHoldersBreakdown` destructuring for v3.x yahoo-finance2 format
-- [x] Add ROCE calculation (EBIT / Equity)
-- [x] Changed `roce: null` to use calculated `roce` variable
+### ✅ 1. `stock-service.ts` — Fixed fundamental snapshot
+- Added `'majorHoldersBreakdown'` to requested modules (was missing → `promoterHolding`/`fiiDiiHolding` always null)
+- Fixed field name resolution for `majorHoldersBreakdown` (tries multiple conventions)
+- Added ROCE calculation from EBIT / (Total Assets - Current Liabilities)
+- Fixed `roce: null` → now uses calculated `roce` variable
+- **Fixed `TypeError: latestQuarter.surprisePct.toFixed is not a function`** — wrapped all raw Yahoo Finance values with `Number()` before `.toFixed()` (Yahoo Finance v3.x returns some values as strings)
+- Added debug logging to inspect raw earnings data structure
+- Added multi-path quarterly earnings extraction (tries `earningsChart.quarterly`, `quarterlyEarnings`, `financialsChart.quarterly`)
 
-### 2. Fix `api/fundamentals/route.ts` - Better error responses
-- [x] Return error message alongside null snapshot
-- [x] Log more detail server-side
+### ✅ 2. `api/ai-analysis/route.ts` — Richer stock analysis
+- **Enhanced AI prompt** to act as "senior equity research analyst"
+- Now produces **4 strengths + 4 weaknesses** (up from 3)
+- Analysis includes: Technical Setup, Risk/Reward, Timeframe Views, Catalysts
+- Each timeframe view now includes explanation (not just "Bullish"/"Neutral")
+- Summary now 2-3 sentences (was 1 sentence)
+- Model temperature kept at 0.2 for consistency
 
-### 3. Fix `api/candles/route.ts` - Stale error messages
-- [x] Change "Finnhub" references to "Yahoo Finance"
+### ✅ 3. `page.tsx` — Better earnings & analysis UI
+- **Earnings summary text now much richer** — uses conditional thresholds (>15%, >0%, negative) to generate detailed, nuanced commentary
+- Added surprisePct analysis (beat/miss magnitude)
+- Added `analysisError` state display in UI
+- Fundamentals card shows red error banner when API fails
 
-### 4. Fix `page.tsx` - Show real error messages in UI
-- [x] Add `fundamentalsError` state
-- [x] Add `analysisError` state
-- [x] Update `handleLoadFundamentals` to capture and display errors
-- [x] Update `handleAnalyze` to capture and display errors from API
-- [x] Display error in fundamentals card instead of generic "No data" message
-- [x] AI analysis now passes real data (RSI, price, volume) from scanned stocks
+### ✅ 4. `api/fundamentals/route.ts` — Better error responses
+- Returns `error` field alongside `snapshot: null` on failure
 
-### 5. Test
-- [x] All edits verified - run `npm run dev` to test
+### ✅ 5. `api/candles/route.ts` — Cleanup
+- Changed stale "Finnhub" references to "Yahoo Finance"
+
+## Remaining for dev server test:
+- Run `npm run dev`, scan Nifty 50, select stock, verify fundamentals + earnings + AI analysis all load correctly
 
