@@ -12,6 +12,8 @@ export default function Dashboard() {
   const [topStocks, setTopStocks] = useState<StockData[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastScanDate, setLastScanDate] = useState<string | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysis, setAnalysis] = useState<{ strengths: string[]; weaknesses: string[]; longTerm: string; swing: string; intraday: string; confidence: string; summary: string } | null>(null);
 
   useEffect(() => {
     const savedResult = localStorage.getItem('last_scan_result_v2');
@@ -52,6 +54,32 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
+  const handleAnalyze = async (symbol: string) => {
+    setAnalysisLoading(true);
+    setAnalysis(null);
+    try {
+      const response = await fetch('/api/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol }),
+      });
+      const data = await response.json();
+      if (data.analysis) {
+        setAnalysis(data.analysis);
+      }
+    } catch (error) {
+      console.error('Analysis failed:', error);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSymbol) {
+      handleAnalyze(activeSymbol);
+    }
+  }, [activeSymbol]);
 
   return (
     <div className="min-h-screen bg-[#05070A] text-slate-200 selection:bg-indigo-500/30 flex flex-col">
@@ -115,10 +143,49 @@ export default function Dashboard() {
                     VOL &gt; 100k
                   </div>
                 </div>
-                <div className="flex flex-col gap-1 text-[10px] font-black tracking-widest uppercase mt-auto">
+                <div className="flex flex-col gap-3 text-[10px] font-black tracking-widest uppercase mt-auto">
                   <div className="flex items-center gap-3 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-lg self-start shadow-[0_0_15px_rgba(52,211,153,0.1)]">
                     <span>SYSTEM ONLINE</span>
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse drop-shadow-[0_0_5px_rgba(52,211,153,0.8)]" />
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-indigo-300">AI STOCK ANALYSIS</span>
+                      {analysisLoading && <span className="text-[9px] text-slate-400">LOADING...</span>}
+                    </div>
+                    {analysis ? (
+                      <div className="space-y-3 text-[11px] font-medium normal-case tracking-normal">
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                          <div className="text-indigo-300 mb-2">AI Verdict</div>
+                          <div className="grid grid-cols-1 gap-2 text-slate-200">
+                            <div className="flex items-center justify-between"><span>Long Term</span><span className="font-semibold text-emerald-300">{analysis.longTerm}</span></div>
+                            <div className="flex items-center justify-between"><span>Swing</span><span className="font-semibold text-amber-300">{analysis.swing}</span></div>
+                            <div className="flex items-center justify-between"><span>Intraday</span><span className="font-semibold text-rose-300">{analysis.intraday}</span></div>
+                          </div>
+                          <div className="mt-2 text-slate-400">Confidence: {analysis.confidence}</div>
+                        </div>
+
+                        <div>
+                          <div className="text-emerald-300 mb-1">Strengths</div>
+                          <ul className="list-disc ml-4 space-y-1 text-slate-300">
+                            {analysis.strengths.map((item) => <li key={item}>{item}</li>)}
+                          </ul>
+                        </div>
+                        <div>
+                          <div className="text-rose-300 mb-1">Weaknesses</div>
+                          <ul className="list-disc ml-4 space-y-1 text-slate-300">
+                            {analysis.weaknesses.map((item) => <li key={item}>{item}</li>)}
+                          </ul>
+                        </div>
+
+                        <div className="border-t border-white/10 pt-2 text-slate-300">
+                          {analysis.summary}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-slate-500 text-[11px]">Select a stock to see AI analysis.</div>
+                    )}
                   </div>
                 </div>
               </div>

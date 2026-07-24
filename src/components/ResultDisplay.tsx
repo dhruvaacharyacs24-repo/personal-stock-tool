@@ -40,67 +40,59 @@ export default function ResultDisplay({ data, loading, onViewChart }: ResultDisp
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between px-1 pb-1">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">Scan Results</p>
+          <h3 className="text-lg font-semibold text-white">Top momentum picks</h3>
+        </div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+          {data.length} stocks
+        </div>
+      </div>
+
       {data.map((stock, idx) => (
         <motion.div
           key={stock.symbol}
           initial={{ opacity: 0, scale: 0.98, x: -20 }}
           animate={{ opacity: 1, scale: 1, x: 0 }}
-          transition={{ delay: idx * 0.1 }}
-          className="w-full bg-gradient-to-r from-[#131622]/90 to-[#0A0D14]/90 border border-indigo-500/30 rounded-2xl overflow-hidden shadow-lg backdrop-blur-xl transition-all hover:border-indigo-500/50"
+          transition={{ delay: idx * 0.08 }}
+          className="w-full rounded-2xl border border-white/10 bg-gradient-to-br from-[#121722] via-[#0D1118] to-[#0A0D14] p-4 shadow-[0_10px_40px_rgba(0,0,0,0.25)]"
         >
-          <div className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            
-            {/* Symbol & Price Info */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.25em] text-indigo-300">
+                  Rank #{idx + 1}
+                </span>
+                <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.25em] ${stock.isAboveSMA ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}>
+                  {stock.isAboveSMA ? 'Above SMA50' : 'Below SMA50'}
+                </span>
+              </div>
+
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-[10px] font-black tracking-[0.2em] text-indigo-400 uppercase bg-indigo-500/10 px-2 py-1 rounded">Rank #{idx + 1}</span>
-                <h2 className="text-2xl font-black text-white tracking-tight">{stock.symbol.replace('.NS', '')}</h2>
+                <h2 className="text-xl font-black text-white">{stock.symbol.replace('.NS', '')}</h2>
+                <div className="text-sm font-mono text-slate-400">₹{stock.price}</div>
               </div>
-              <div className="flex items-center gap-4 text-sm">
-                <div className="text-slate-400 font-mono tracking-wider">
-                  ₹{stock.price}
+
+              <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                  RSI: <span className="ml-1 font-semibold text-emerald-300">{stock.rsi}</span>
                 </div>
-                <div className={`flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-widest ${stock.isAboveSMA ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {stock.isAboveSMA ? <><CheckCircle2 className="w-3.5 h-3.5" /> Above SMA50</> : <><AlertTriangle className="w-3.5 h-3.5" /> Below SMA50</>}
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                  Volume: <span className="ml-1 font-semibold text-slate-200">{(stock.volume / 100000).toFixed(1)}L</span>
+                </div>
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                  Status: <span className="ml-1 font-semibold text-slate-200">{stock.rsiStatus}</span>
                 </div>
               </div>
             </div>
 
-            {/* Metrics */}
-            <div className="flex items-center gap-6 bg-black/20 p-3 rounded-xl border border-white/5 flex-wrap">
-              <div className="text-center px-4">
-                <div className="flex items-center gap-1.5 justify-center text-indigo-400/70 mb-1">
-                  <TrendingUp className="w-3 h-3" />
-                  <span className="text-[9px] font-bold uppercase tracking-widest">Weekly RSI</span>
-                </div>
-                <div className="text-2xl font-mono font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]">
-                  {stock.rsi}
-                </div>
-              </div>
-              
-              <div className="w-px h-10 bg-white/10 hidden md:block" />
-              
-              <div className="text-center px-4">
-                <div className="flex items-center gap-1.5 justify-center text-indigo-400/70 mb-1">
-                  <BarChart2 className="w-3 h-3" />
-                  <span className="text-[9px] font-bold uppercase tracking-widest">Volume</span>
-                </div>
-                <div className="text-xl font-mono font-black text-slate-200">
-                  {(stock.volume / 100000).toFixed(1)}L
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div>
-              <button
-                onClick={() => onViewChart(stock.symbol)}
-                className="w-full md:w-auto px-6 py-3 bg-indigo-500/20 hover:bg-indigo-500/40 border border-indigo-500/50 rounded-xl text-white text-xs font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]"
-              >
-                View Chart
-              </button>
-            </div>
-
+            <button
+              onClick={() => onViewChart(stock.symbol)}
+              className="w-full lg:w-auto rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.25em] text-indigo-200 transition hover:bg-indigo-500/25"
+            >
+              View Chart
+            </button>
           </div>
         </motion.div>
       ))}
