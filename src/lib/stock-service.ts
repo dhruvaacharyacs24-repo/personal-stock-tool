@@ -15,6 +15,39 @@ export interface StockData {
   rsiStatus: string;
 }
 
+export interface FundamentalSnapshot {
+  symbol: string;
+  pe: number | null;
+  pb: number | null;
+  eps: number | null;
+  roe: number | null;
+  roce: number | null;
+  debtToEquity: number | null;
+  operatingMargin: number | null;
+  netMargin: number | null;
+  salesGrowth: number | null;
+  profitGrowth: number | null;
+  promoterHolding: number | null;
+  fiiDiiHolding: number | null;
+  rating: number | null;
+  sector: string | null;
+  industry: string | null;
+  currency: string | null;
+  earnings: {
+    latestQuarterLabel: string | null;
+    latestQuarterRevenue: number | null;
+    latestQuarterProfit: number | null;
+    latestQuarterMargin: number | null;
+    previousQuarterRevenue: number | null;
+    previousQuarterProfit: number | null;
+    previousQuarterMargin: number | null;
+    revenueGrowthQoQ: number | null;
+    profitGrowthQoQ: number | null;
+    marginDelta: number | null;
+    surprisePct: number | null;
+  };
+}
+
 export const calculateRSI = (prices: number[], period = 14): number => {
   if (prices.length <= period) return 0;
 
@@ -51,6 +84,107 @@ export const calculateSMA = (prices: number[], period = 50): number => {
   const lastX = prices.slice(-period);
   return lastX.reduce((a, b) => a + b, 0) / period;
 };
+
+export async function fetchFundamentalSnapshot(symbol: string): Promise<FundamentalSnapshot | null> {
+  try {
+    const result = await (yahooFinance as any).quoteSummary(symbol.toUpperCase(), {
+      modules: ['summaryProfile', 'defaultKeyStatistics', 'financialData', 'earnings', 'price'],
+    });
+
+    const summaryProfile = result?.summaryProfile || {};
+    const stats = result?.defaultKeyStatistics || {};
+    const financialData = result?.financialData || {};
+    const earningsData = result?.earnings || {};
+    const priceData = result?.price || {};
+    const majorHolders = result?.majorHoldersBreakdown || {};
+
+    const currentPrice = priceData?.regularMarketPrice ?? financialData?.currentPrice ?? null;
+    const trailingEps = stats?.trailingEps ?? stats?.forwardEps ?? null;
+    const pe = currentPrice && trailingEps ? Number((currentPrice / trailingEps).toFixed(2)) : (stats?.forwardPE != null ? Number(stats.forwardPE.toFixed(2)) : null);
+    const pb = stats?.priceToBook != null ? Number(stats.priceToBook.toFixed(2)) : null;
+    const eps = trailingEps != null ? Number(trailingEps.toFixed(2)) : (stats?.forwardEps != null ? Number(stats.forwardEps.toFixed(2)) : null);
+
+    const bookValue = stats?.bookValue ?? null;
+    const netIncomeToCommon = stats?.netIncomeToCommon ?? null;
+    const sharesOutstanding = stats?.sharesOutstanding ?? null;
+    const roe = bookValue && netIncomeToCommon && sharesOutstanding
+      ? Number(((netIncomeToCommon / (bookValue * sharesOutstanding)) * 100).toFixed(2))
+      : (financialData?.returnOnEquity != null ? Number(financialData.returnOnEquity.toFixed(2)) : null);
+
+    const operatingMargin = financialData?.operatingMargins != null ? Number((financialData.operatingMargins * 100).toFixed(2)) : null;
+    const netMargin = financialData?.profitMargins != null ? Number((financialData.profitMargins * 100).toFixed(2)) : null;
+    const salesGrowth = financialData?.revenueGrowth != null ? Number((financialData.revenueGrowth * 100).toFixed(2)) : null;
+    const profitGrowth = financialData?.earningsGrowth != null ? Number((financialData.earningsGrowth * 100).toFixed(2)) : null;
+    const debtToEquity = financialData?.debtToEquity != null ? Number(financialData.debtToEquity.toFixed(2)) : null;
+
+    const quarterly = earningsData?.earningsChart?.quarterly || [];
+    const latestQuarter = quarterly[0] || null;
+    const previousQuarter = quarterly[1] || null;
+
+    const latestRevenue = latestQuarter?.revenue ?? null;
+    const previousRevenue = previousQuarter?.revenue ?? null;
+    const latestProfit = latestQuarter?.earnings ?? null;
+    const previousProfit = previousQuarter?.earnings ?? null;
+    const latestMargin = latestQuarter?.profitMargin != null ? Number((latestQuarter.profitMargin * 100).toFixed(2)) : null;
+    const previousMargin = previousQuarter?.profitMargin != null ? Number((previousQuarter.profitMargin * 100).toFixed(2)) : null;
+    const revenueGrowthQoQ = latestRevenue && previousRevenue ? Number((((latestRevenue - previousRevenue) / previousRevenue) * 100).toFixed(2)) : null;
+    const profitGrowthQoQ = latestProfit && previousProfit ? Number((((latestProfit - previousProfit) / previousProfit) * 100).toFixed(2)) : null;
+    const marginDelta = latestMargin != null && previousMargin != null ? Number((latestMargin - previousMargin).toFixed(2)) : null;
+    const surprisePct = latestQuarter?.surprisePct != null ? Number(latestQuarter.surprisePct.toFixed(2)) : null;
+    const promoterHolding = majorHolders?.insidersPercentHeld != null ? Number((majorHolders.insidersPercentHeld * 100).toFixed(2)) : null;
+    const fiiDiiHolding = majorHolders?.institutionsPercentHeld != null ? Number((majorHolders.institutionsPercentHeld * 100).toFixed(2)) : null;
+
+    let rating = 0;
+    if (pe != null && pe < 30) rating += 1;
+    if (pb != null && pb < 3) rating += 1;
+    if (roe != null && roe > 10) rating += 1;
+    if (operatingMargin != null && operatingMargin > 10) rating += 1;
+    if (netMargin != null && netMargin > 8) rating += 1;
+    if (debtToEquity != null && debtToEquity < 1) rating += 1;
+    if (salesGrowth != null && salesGrowth > 0) rating += 1;
+    if (profitGrowth != null && profitGrowth > 0) rating += 1;
+    if (promoterHolding != null && promoterHolding > 35) rating += 1;
+    if (fiiDiiHolding != null && fiiDiiHolding > 20) rating += 1;
+    if (latestMargin != null && latestMargin > 6) rating += 1;
+    const normalizedRating = Math.min(10, Number(((rating / 11) * 10).toFixed(1)));
+
+    return {
+      symbol: symbol.toUpperCase(),
+      pe,
+      pb,
+      eps,
+      roe,
+      roce: null,
+      debtToEquity,
+      operatingMargin,
+      netMargin,
+      salesGrowth,
+      profitGrowth,
+      promoterHolding,
+      fiiDiiHolding,
+      rating: normalizedRating,
+      sector: summaryProfile?.sector || null,
+      industry: summaryProfile?.industry || null,
+      currency: priceData?.currency || null,
+      earnings: {
+        latestQuarterLabel: latestQuarter?.date || null,
+        latestQuarterRevenue: latestRevenue,
+        latestQuarterProfit: latestProfit,
+        latestQuarterMargin: latestMargin,
+        previousQuarterRevenue: previousRevenue,
+        previousQuarterProfit: previousProfit,
+        previousQuarterMargin: previousMargin,
+        revenueGrowthQoQ,
+        profitGrowthQoQ,
+        marginDelta,
+        surprisePct,
+      },
+    };
+  } catch (error) {
+    console.error(`Error fetching fundamentals for ${symbol}:`, error);
+    return null;
+  }
+}
 
 export async function fetchCandles(symbol: string) {
   try {

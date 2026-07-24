@@ -3,9 +3,26 @@
 import { useEffect, useState } from 'react';
 import ChartContainer from '@/components/ChartContainer';
 import ResultDisplay from '@/components/ResultDisplay';
-import { StockData } from '@/lib/stock-service';
+import { FundamentalSnapshot, StockData } from '@/lib/stock-service';
 import { Activity, History, Play, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+      <div className="text-[10px] uppercase tracking-[0.25em] text-slate-500">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+    </div>
+  );
+}
+
+function Pill({ label }: { label: string }) {
+  return (
+    <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.25em] text-indigo-200">
+      {label}
+    </span>
+  );
+}
 
 export default function Dashboard() {
   const [activeSymbol, setActiveSymbol] = useState('RELIANCE.NS');
@@ -14,6 +31,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [lastScanDate, setLastScanDate] = useState<string | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [fundamentalsLoading, setFundamentalsLoading] = useState(false);
   const [analysis, setAnalysis] = useState<{
     strengths: string[];
     weaknesses: string[];
@@ -23,6 +41,7 @@ export default function Dashboard() {
     confidence: string;
     summary: string;
   } | null>(null);
+  const [fundamentals, setFundamentals] = useState<FundamentalSnapshot | null>(null);
 
   useEffect(() => {
     const savedResult = localStorage.getItem('last_scan_result_v2');
@@ -102,9 +121,30 @@ export default function Dashboard() {
     }
   };
 
+  const handleLoadFundamentals = async (symbol: string) => {
+    setFundamentalsLoading(true);
+    setFundamentals(null);
+    try {
+      const response = await fetch('/api/fundamentals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol }),
+      });
+      const data = await response.json();
+      if (data.snapshot) {
+        setFundamentals(data.snapshot);
+      }
+    } catch (error) {
+      console.error('Fundamentals failed:', error);
+    } finally {
+      setFundamentalsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedSymbol) {
       handleAnalyze(selectedSymbol);
+      handleLoadFundamentals(selectedSymbol);
     }
   }, [selectedSymbol, topStocks]);
 
@@ -267,6 +307,97 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {selectedSymbol && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              className="grid grid-cols-1 gap-4 lg:grid-cols-2"
+            >
+              <div className="rounded-3xl border border-white/10 bg-[#0D1118]/90 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">Fundamental Analysis</p>
+                    <h4 className="text-lg font-semibold text-white">{selectedSymbol.replace('.NS', '')}</h4>
+                  </div>
+                  <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-emerald-300">
+                    {fundamentals?.rating ? `${fundamentals.rating}/10` : '—'}
+                  </div>
+                </div>
+
+                {fundamentalsLoading ? (
+                  <div className="text-sm text-slate-500">Loading fundamentals...</div>
+                ) : fundamentals ? (
+                  <div className="space-y-4 text-[12px] text-slate-300">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Metric label="PE" value={fundamentals.pe != null ? fundamentals.pe.toString() : '—'} />
+                      <Metric label="PB" value={fundamentals.pb != null ? fundamentals.pb.toString() : '—'} />
+                      <Metric label="EPS" value={fundamentals.eps != null ? fundamentals.eps.toString() : '—'} />
+                      <Metric label="ROE" value={fundamentals.roe != null ? `${fundamentals.roe}%` : '—'} />
+                      <Metric label="ROCE" value={fundamentals.roce != null ? `${fundamentals.roce}%` : '—'} />
+                      <Metric label="Debt/Equity" value={fundamentals.debtToEquity != null ? fundamentals.debtToEquity.toString() : '—'} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Metric label="Operating Margin" value={fundamentals.operatingMargin != null ? `${fundamentals.operatingMargin}%` : '—'} />
+                      <Metric label="Net Margin" value={fundamentals.netMargin != null ? `${fundamentals.netMargin}%` : '—'} />
+                      <Metric label="Sales Growth" value={fundamentals.salesGrowth != null ? `${fundamentals.salesGrowth}%` : '—'} />
+                      <Metric label="Profit Growth" value={fundamentals.profitGrowth != null ? `${fundamentals.profitGrowth}%` : '—'} />
+                      <Metric label="Promoter Holding" value={fundamentals.promoterHolding != null ? `${fundamentals.promoterHolding}%` : '—'} />
+                      <Metric label="FII/DII Holding" value={fundamentals.fiiDiiHolding != null ? `${fundamentals.fiiDiiHolding}%` : '—'} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-500">No fundamental data available for this stock.</div>
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-[#0D1118]/90 p-5">
+                <div className="mb-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">AI Earnings Summary</p>
+                  <h4 className="text-lg font-semibold text-white">Quarterly results readout</h4>
+                </div>
+
+                {fundamentals ? (
+                  <div className="space-y-3 text-[12px] text-slate-300">
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-slate-500">Latest quarter</div>
+                      <div className="text-sm font-semibold text-white">{fundamentals.earnings.latestQuarterLabel || '—'}</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Pill label={`Revenue ${fundamentals.earnings.latestQuarterRevenue != null ? `₹${(fundamentals.earnings.latestQuarterRevenue / 1e9).toFixed(1)}B` : '—'}`} />
+                        <Pill label={`Profit ${fundamentals.earnings.latestQuarterProfit != null ? `₹${(fundamentals.earnings.latestQuarterProfit / 1e9).toFixed(1)}B` : '—'}`} />
+                        <Pill label={`Margin ${fundamentals.earnings.latestQuarterMargin != null ? `${fundamentals.earnings.latestQuarterMargin}%` : '—'}`} />
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-slate-500">Quarterly trend</div>
+                      <div className="space-y-2 text-sm">
+                        <div>Revenue {fundamentals.earnings.revenueGrowthQoQ != null ? `${fundamentals.earnings.revenueGrowthQoQ > 0 ? '↑' : '↓'} ${Math.abs(fundamentals.earnings.revenueGrowthQoQ).toFixed(1)}%` : '—'}</div>
+                        <div>Profit {fundamentals.earnings.profitGrowthQoQ != null ? `${fundamentals.earnings.profitGrowthQoQ > 0 ? '↑' : '↓'} ${Math.abs(fundamentals.earnings.profitGrowthQoQ).toFixed(1)}%` : '—'}</div>
+                        <div>Margins {fundamentals.earnings.marginDelta != null ? `${fundamentals.earnings.marginDelta > 0 ? 'expanded' : 'compressed'} ${Math.abs(fundamentals.earnings.marginDelta).toFixed(1)} pts` : '—'}</div>
+                        <div>Surprise {fundamentals.earnings.surprisePct != null ? `${fundamentals.earnings.surprisePct > 0 ? 'beat' : 'miss'} by ${Math.abs(fundamentals.earnings.surprisePct).toFixed(1)}%` : '—'}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-slate-200">
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-emerald-300">AI summary</div>
+                      <div className="text-sm leading-6">
+                        {fundamentals.earnings.revenueGrowthQoQ != null && fundamentals.earnings.revenueGrowthQoQ > 0 ? 'Revenue is trending upward, showing healthy demand momentum.' : 'Revenue trend needs close monitoring before calling it durable.'}
+                        {' '}
+                        {fundamentals.earnings.profitGrowthQoQ != null && fundamentals.earnings.profitGrowthQoQ > 0 ? 'Profit growth is constructive and supports a stronger earnings profile.' : 'Profit growth remains uneven and warrants caution.'}
+                        {' '}
+                        {fundamentals.earnings.marginDelta != null && fundamentals.earnings.marginDelta < 0 ? 'Margins are under pressure, which can affect near-term sentiment.' : 'Margins are holding up reasonably well.'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-500">No earnings snapshot available yet.</div>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           <div className="h-[600px] w-full">
             <ChartContainer symbol={activeSymbol} />
