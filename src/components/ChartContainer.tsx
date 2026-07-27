@@ -130,17 +130,38 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
       lineStyle: 0,
     });
 
-    // Add 30/70 Overbought/Oversold lines
-    rsiChart.addSeries(LineSeries, { color: 'rgba(255, 255, 255, 0.2)', lineWidth: 1, lineStyle: 2 }).setData([
-      { time: 0 as any, value: 30 }, { time: 9999999999 as any, value: 30 }
-    ]);
-    rsiChart.addSeries(LineSeries, { color: 'rgba(255, 255, 255, 0.2)', lineWidth: 1, lineStyle: 2 }).setData([
-      { time: 0 as any, value: 70 }, { time: 9999999999 as any, value: 70 }
-    ]);
+// Add 30/70 Overbought/Oversold lines as price lines on the RSI series itself
+    // This avoids using fake timestamps that stretch the time axis
+    rsiSeries.createPriceLine({ price: 70, color: 'rgba(239, 68, 68, 0.3)', lineWidth: 1, lineStyle: 2, axisLabelVisible: false });
+    rsiSeries.createPriceLine({ price: 30, color: 'rgba(16, 185, 129, 0.3)', lineWidth: 1, lineStyle: 2, axisLabelVisible: false });
 
-    // Sync logic removed to ensure stability, RSI Chart will follow Main Chart interaction via crosshair
-    // Use a unified time scale logic if required in future releases.
-    // chart.timeScale().subscribeVisibleTimeRangeChange(...)
+// --- Sync time scales between price chart and RSI chart ---
+    // Use a ref to track if data has been loaded to avoid syncing before data is ready
+    let syncing = false;
+    const dataLoaded = { current: false };
+
+    chart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      // null check: fitContent() can fire with null range, which crashes setVisibleRange
+      if (syncing || !range || !range.from || !range.to) return;
+      syncing = true;
+      try {
+        rsiChart.timeScale().setVisibleRange(range);
+      } catch (e) {
+        console.warn('[CHART] Sync error (price→RSI):', e);
+      }
+      syncing = false;
+    });
+
+    rsiChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      if (syncing || !range || !range.from || !range.to) return;
+      syncing = true;
+      try {
+        chart.timeScale().setVisibleRange(range);
+      } catch (e) {
+        console.warn('[CHART] Sync error (RSI→price):', e);
+      }
+      syncing = false;
+    });
 
     chartRef.current = chart;
     rsiChartRef.current = rsiChart;

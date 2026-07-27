@@ -372,9 +372,15 @@ export default function Dashboard() {
                       <Metric label="FII/DII Holding" value={fundamentals.fiiDiiHolding != null ? `${fundamentals.fiiDiiHolding}%` : '—'} />
                     </div>
                   </div>
-                ) : (
+) : (
                   <div className="text-sm text-slate-500">No fundamental data available for this stock.</div>
                 )}
+                <div className="mt-4 pt-3 border-t border-white/5 flex items-center gap-2">
+                  <div className="w-1 h-1 rounded-full bg-indigo-500/60" />
+                  <span className="text-[8px] uppercase tracking-[0.25em] text-slate-600 font-medium">
+                    Data sourced from Yahoo Finance — values may differ from official filings due to currency conversion, consolidation scope, or adjustments. Cross-verify with company reports.
+                  </span>
+                </div>
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-[#0D1118]/90 p-5">
