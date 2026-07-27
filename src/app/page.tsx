@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ChartContainer from '@/components/ChartContainer';
+import NewsPanel from '@/components/NewsPanel';
 import ResultDisplay from '@/components/ResultDisplay';
 import { FundamentalSnapshot, StockData } from '@/lib/stock-service';
 import { Activity, History, Play, Shield } from 'lucide-react';
@@ -447,6 +448,10 @@ export default function Dashboard() {
                 )}
               </div>
             </motion.div>
+          )}
+
+          {selectedSymbol && (
+            <NewsPanel symbol={selectedSymbol} />
           )}
 
           <div className="h-[600px] w-full">
