@@ -11,20 +11,21 @@ interface ChartContainerProps {
 export default function ChartContainer({ symbol }: ChartContainerProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const rsiContainerRef = useRef<HTMLDivElement>(null);
-  
+
   const chartRef = useRef<IChartApi | null>(null);
   const rsiChartRef = useRef<IChartApi | null>(null);
-  
+
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const rsiSmaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [chartHeightPercent, setChartHeightPercent] = useState(70);
   const isDragging = useRef(false);
+  const suppressSyncRef = useRef(false); // shared flag: suppress time-scale sync during programmatic fitContent()
 
   const startResize = () => {
     isDragging.current = true;
@@ -130,22 +131,31 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
       lineStyle: 0,
     });
 
-// Add 30/70 Overbought/Oversold lines as price lines on the RSI series itself
-    // This avoids using fake timestamps that stretch the time axis
+    // Add 30/70 Overbought/Oversold lines as price lines on the RSI series itself
     rsiSeries.createPriceLine({ price: 70, color: 'rgba(239, 68, 68, 0.3)', lineWidth: 1, lineStyle: 2, axisLabelVisible: false });
     rsiSeries.createPriceLine({ price: 30, color: 'rgba(16, 185, 129, 0.3)', lineWidth: 1, lineStyle: 2, axisLabelVisible: false });
 
-// --- Sync time scales between price chart and RSI chart ---
-    // Use a ref to track if data has been loaded to avoid syncing before data is ready
+    // --- Sync time scales between price chart and RSI chart ---
     let syncing = false;
-    const dataLoaded = { current: false };
+
+    const toTimestamp = (v: any): number | null => {
+      if (v == null) return null;
+      if (typeof v === 'number') return v;
+      if (typeof v.timestamp === 'number') return v.timestamp;
+      if (v.day != null && v.month != null && v.year != null) {
+        return Math.floor(Date.UTC(v.year, v.month - 1, v.day) / 1000);
+      }
+      return null;
+    };
 
     chart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      // null check: fitContent() can fire with null range, which crashes setVisibleRange
-      if (syncing || !range || !range.from || !range.to) return;
+      if (syncing || suppressSyncRef.current || !range) return;
+      const fromTime = toTimestamp(range.from);
+      const toTime = toTimestamp(range.to);
+      if (fromTime == null || toTime == null || fromTime >= toTime) return;
       syncing = true;
       try {
-        rsiChart.timeScale().setVisibleRange(range);
+        rsiChart.timeScale().setVisibleRange({ from: fromTime, to: toTime } as any);
       } catch (e) {
         console.warn('[CHART] Sync error (price→RSI):', e);
       }
@@ -153,10 +163,13 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
     });
 
     rsiChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      if (syncing || !range || !range.from || !range.to) return;
+      if (syncing || suppressSyncRef.current || !range) return;
+      const fromTime = toTimestamp(range.from);
+      const toTime = toTimestamp(range.to);
+      if (fromTime == null || toTime == null || fromTime >= toTime) return;
       syncing = true;
       try {
-        chart.timeScale().setVisibleRange(range);
+        chart.timeScale().setVisibleRange({ from: fromTime, to: toTime } as any);
       } catch (e) {
         console.warn('[CHART] Sync error (RSI→price):', e);
       }
@@ -193,7 +206,7 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
   useEffect(() => {
     const fetchData = async () => {
       if (typeof window === 'undefined') return;
-      
+
       setLoading(true);
       setError(null);
 
@@ -215,11 +228,11 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
           }
           candleSeriesRef.current.setData(data.candles);
         }
-        
+
         if (volumeSeriesRef.current && data.candles) {
           volumeSeriesRef.current.setData(data.candles);
         }
-        
+
         if (rsiSeriesRef.current && data.rsiData) {
           console.log(`[CHART] Setting ${data.rsiData.length} RSI points`);
           rsiSeriesRef.current.setData(data.rsiData);
@@ -228,9 +241,11 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
         if (rsiSmaSeriesRef.current && data.rsiSmaData) {
           rsiSmaSeriesRef.current.setData(data.rsiSmaData);
         }
-        
+
         if (chartRef.current && data.candles.length > 0) {
+          suppressSyncRef.current = true;
           chartRef.current.timeScale().fitContent();
+          setTimeout(() => { suppressSyncRef.current = false; }, 100);
         }
       } catch (err: any) {
         console.error('[CHART] Error:', err);
@@ -278,8 +293,8 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
 
         <div className="h-full flex flex-col relative">
           <div style={{ height: `${chartHeightPercent}%` }} ref={chartContainerRef} className="w-full relative z-0" />
-          
-          <div 
+
+          <div
             onMouseDown={startResize}
             className="h-1 bg-white/10 hover:bg-indigo-500 cursor-row-resize flex items-center justify-center transition-colors shadow-[0_0_10px_rgba(99,102,241,0.5)] z-20 relative"
           >

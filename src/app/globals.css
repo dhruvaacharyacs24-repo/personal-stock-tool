@@ -4,8 +4,12 @@
   --background: #05070a;
   --foreground: #f8fafc;
   --accent: #6366f1;
+  --accent-light: #818cf8;
+  --accent-dark: #4f46e5;
   --card: #0f1219;
+  --card-elevated: #1a1f2e;
   --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.15);
 }
 
 @theme {
@@ -13,14 +17,26 @@
   --color-foreground: var(--foreground);
   --color-accent: var(--accent);
   --color-card: var(--card);
+  --color-card-elevated: var(--card-elevated);
   --color-border-subtle: var(--border);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: rgba(99, 102, 241, 0.3);
+    color: #fff;
+  }
 }
 
 @layer components {
@@ -28,22 +44,108 @@ body {
     @apply bg-black/40 backdrop-blur-md border border-white/5;
   }
   
+  .glass-hover {
+    @apply hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300;
+  }
+  
   .card-gradient {
     background: linear-gradient(135deg, rgba(15, 18, 25, 0.8) 0%, rgba(5, 7, 10, 0.9) 100%);
   }
+  
+  .card-gradient-hover {
+    transition: all 0.3s ease;
+  }
+  .card-gradient-hover:hover {
+    background: linear-gradient(135deg, rgba(25, 28, 35, 0.9) 0%, rgba(10, 12, 18, 0.95) 100%);
+    border-color: rgba(99, 102, 241, 0.2);
+  }
+
+  .glow-indigo {
+    box-shadow: 0 0 20px -8px rgba(99, 102, 241, 0.15);
+  }
+  .glow-indigo:hover {
+    box-shadow: 0 0 30px -8px rgba(99, 102, 241, 0.3);
+  }
+
+  .glow-emerald {
+    box-shadow: 0 0 20px -8px rgba(16, 185, 129, 0.15);
+  }
+
+  .glow-rose {
+    box-shadow: 0 0 20px -8px rgba(239, 68, 68, 0.15);
+  }
+
+  .text-gradient-indigo {
+    @apply bg-gradient-to-r from-indigo-300 to-indigo-500 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-white {
+    @apply bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent;
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.5s ease-out;
+  }
+  .animate-slideUp {
+    animation: slideUp 0.4s ease-out;
+  }
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Custom scrollbar for panels */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.4);
 }

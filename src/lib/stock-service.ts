@@ -13,6 +13,7 @@ export interface StockData {
   volume: number;
   isAboveSMA: boolean;
   rsiStatus: string;
+  priceChangePct: number; // Weekly price change percentage
 }
 
 export interface FundamentalSnapshot {
@@ -365,9 +366,15 @@ export async function fetchStockReport(symbol: string): Promise<StockData | null
     const volumes = data.v; // Volumes
 
     const currentPrice = prices[prices.length - 1];
+    const previousPrice = prices[prices.length - 2];
     const currentVolume = volumes[volumes.length - 1];
     const rsi = calculateRSI(prices, 14);
     const sma50 = calculateSMA(prices, 50);
+
+    // Weekly price change percentage
+    const priceChangePct = previousPrice > 0
+      ? Number((((currentPrice - previousPrice) / previousPrice) * 100).toFixed(2))
+      : 0;
 
     const isAboveSMA = currentPrice > sma50;
     let rsiStatus = 'Neutral';
@@ -382,7 +389,8 @@ export async function fetchStockReport(symbol: string): Promise<StockData | null
       price: Number(currentPrice.toFixed(2)),
       volume: currentVolume,
       isAboveSMA,
-      rsiStatus
+      rsiStatus,
+      priceChangePct,
     };
   } catch (error) {
     console.error(`Error fetching ${symbol}:`, error);

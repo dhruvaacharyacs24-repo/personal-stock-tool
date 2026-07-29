@@ -35,14 +35,29 @@ export async function POST(req: Request) {
       stock.rsi <= 35
     );
 
-    // Pick top 3 (Lowest RSI first)
-    const topStocks = candidates.sort((a, b) => a.rsi - b.rsi).slice(0, 3);
+    if (candidates.length > 0) {
+      // Pick top 3 (Lowest RSI first)
+      const topStocks = candidates.sort((a, b) => a.rsi - b.rsi).slice(0, 3);
+      return NextResponse.json({
+        topStocks,
+        totalScanned: validReports.length,
+        potentialCandidates: candidates.length,
+        allReports: validReports,
+        scanMode: 'filtered',
+      });
+    }
+
+    // No stocks matched criteria — return all Nifty 50 sorted by highest weekly gain
+    const sortedByGain = validReports
+      .filter(s => s.priceChangePct != null)
+      .sort((a, b) => b.priceChangePct - a.priceChangePct);
 
     return NextResponse.json({
-      topStocks,
+      topStocks: sortedByGain,
       totalScanned: validReports.length,
-      potentialCandidates: candidates.length,
-      allReports: validReports
+      potentialCandidates: 0,
+      allReports: validReports,
+      scanMode: 'full_list',
     });
   } catch (error) {
     console.error('Scan error:', error);

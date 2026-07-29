@@ -26,7 +26,7 @@ function Pill({ label }: { label: string }) {
 }
 
 export default function Dashboard() {
-  const [activeSymbol, setActiveSymbol] = useState('RELIANCE.NS');
+  const [activeSymbol, setActiveSymbol] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [topStocks, setTopStocks] = useState<StockData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,16 +45,17 @@ export default function Dashboard() {
   const [fundamentals, setFundamentals] = useState<FundamentalSnapshot | null>(null);
   const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [scanMode, setScanMode] = useState<'filtered' | 'full_list'>('filtered');
+  const [hasScanned, setHasScanned] = useState(false);
 
   useEffect(() => {
     const savedResult = localStorage.getItem('last_scan_result_v2');
     if (savedResult) {
       const parsed = JSON.parse(savedResult);
       setTopStocks(parsed.stocks || []);
+      setScanMode(parsed.scanMode || 'filtered');
       setLastScanDate(parsed.date);
-      if (parsed.stocks?.length) {
-        setActiveSymbol(parsed.stocks[0].symbol);
-      }
+      setHasScanned(true);
     }
   }, []);
 
@@ -70,15 +71,16 @@ export default function Dashboard() {
       const data = await response.json();
       if (data.topStocks && data.topStocks.length > 0) {
         setTopStocks(data.topStocks);
+        setScanMode(data.scanMode || 'filtered');
         setActiveSymbol(data.topStocks[0].symbol);
         setSelectedSymbol(null);
         setAnalysis(null);
-        const scanData = { stocks: data.topStocks, date: new Date().toLocaleString() };
+        const scanData = { stocks: data.topStocks, date: new Date().toLocaleString(), scanMode: data.scanMode };
         setLastScanDate(scanData.date);
         localStorage.setItem('last_scan_result_v2', JSON.stringify(scanData));
       } else {
-        alert('No stocks matched the strategy criteria (RSI 20-35, Volume > 100k).');
         setTopStocks([]);
+        setScanMode('filtered');
       }
     } catch (error) {
       console.error('Scan failed:', error);
@@ -206,6 +208,7 @@ export default function Dashboard() {
                 selectedSymbol={selectedSymbol}
                 onSelectStock={handleSelectStock}
                 onViewChart={setActiveSymbol}
+                scanMode={scanMode}
               />
             </div>
 
