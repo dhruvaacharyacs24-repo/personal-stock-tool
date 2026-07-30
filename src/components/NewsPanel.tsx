@@ -88,8 +88,8 @@ export default function NewsPanel({ symbol, onClose }: NewsPanelProps) {
       className="rounded-3xl border border-white/10 bg-[#0D1118]/90 overflow-hidden"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-white/5">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="p-2 bg-indigo-500/10 rounded-lg">
             <Newspaper className="w-4 h-4 text-indigo-400" />
           </div>
@@ -115,7 +115,7 @@ export default function NewsPanel({ symbol, onClose }: NewsPanelProps) {
       </div>
 
       {error && (
-        <div className="mx-5 mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-300">
+        <div className="mx-3 sm:mx-5 mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-300">
           <div className="text-[10px] uppercase tracking-[0.25em] text-rose-400 mb-1">Error</div>
           {error}
         </div>
@@ -141,7 +141,7 @@ export default function NewsPanel({ symbol, onClose }: NewsPanelProps) {
       {news.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
           {/* News List - 2/3 width */}
-          <div className="lg:col-span-2 divide-y divide-white/5 max-h-[500px] overflow-y-auto custom-scrollbar">
+          <div className="lg:col-span-2 divide-y divide-white/5 max-h-[380px] sm:max-h-[500px] overflow-y-auto custom-scrollbar">
             {news.map((article, idx) => (
               <motion.a
                 key={article.uuid}
@@ -151,10 +151,10 @@ export default function NewsPanel({ symbol, onClose }: NewsPanelProps) {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: idx * 0.05 }}
-                className="flex items-start gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors group"
+                className="flex items-start gap-3 sm:gap-4 px-3 sm:px-5 py-3 sm:py-4 hover:bg-white/[0.02] transition-colors group"
               >
                 {article.thumbnail && (
-                  <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-white/5">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0 bg-white/5">
                     <img
                       src={article.thumbnail}
                       alt=""
@@ -173,7 +173,7 @@ export default function NewsPanel({ symbol, onClose }: NewsPanelProps) {
                       {formatDate(article.date)}
                     </span>
                   </div>
-                  <p className="text-[12px] text-slate-200 leading-relaxed group-hover:text-white transition-colors line-clamp-2">
+                  <p className="text-[11px] sm:text-[12px] text-slate-200 leading-relaxed group-hover:text-white transition-colors line-clamp-2">
                     {article.title}
                   </p>
                   <div className="mt-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -188,7 +188,7 @@ export default function NewsPanel({ symbol, onClose }: NewsPanelProps) {
 
           {/* Sentiment Panel - 1/3 width */}
           {sentiment && (
-            <div className="lg:col-span-1 border-t lg:border-t-0 lg:border-l border-white/5 p-5 bg-black/20">
+            <div className="lg:col-span-1 border-t lg:border-t-0 lg:border-l border-white/5 p-3 sm:p-5 bg-black/20">
               <div className="flex flex-col h-full">
                 <div className="mb-4">
                   <p className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 mb-3">Sentiment Analysis</p>

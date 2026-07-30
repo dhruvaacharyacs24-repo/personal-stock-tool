@@ -85,8 +85,8 @@ function FullListTable({
         <span className="text-[10px] text-slate-500 font-medium">{data.length} stocks</span>
       </div>
 
-      <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
-        <table className="w-full text-[11px]">
+      <div className="max-h-[480px] overflow-auto custom-scrollbar">
+        <table className="w-full min-w-[760px] text-[11px]">
           <thead className="sticky top-0 bg-[#0D1118] z-10">
             <tr className="border-b border-white/5 text-[9px] uppercase tracking-widest text-slate-500 font-bold">
               <th className="text-left px-4 py-2.5 w-12">#</th>

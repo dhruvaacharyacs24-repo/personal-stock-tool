@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ChartContainer from '@/components/ChartContainer';
 import NewsPanel from '@/components/NewsPanel';
 import ResultDisplay from '@/components/ResultDisplay';
@@ -26,9 +26,11 @@ function Pill({ label }: { label: string }) {
 }
 
 export default function Dashboard() {
+  const niftyTableRef = useRef<HTMLDivElement | null>(null);
   const [activeSymbol, setActiveSymbol] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [topStocks, setTopStocks] = useState<StockData[]>([]);
+  const [allStocks, setAllStocks] = useState<StockData[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastScanDate, setLastScanDate] = useState<string | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -48,11 +50,14 @@ export default function Dashboard() {
   const [scanMode, setScanMode] = useState<'filtered' | 'full_list'>('filtered');
   const [hasScanned, setHasScanned] = useState(false);
 
+  const sortStocksByGain = (stocks: StockData[]) => [...stocks].sort((a, b) => b.priceChangePct - a.priceChangePct);
+
   useEffect(() => {
     const savedResult = localStorage.getItem('last_scan_result_v2');
     if (savedResult) {
       const parsed = JSON.parse(savedResult);
       setTopStocks(parsed.stocks || []);
+      setAllStocks(sortStocksByGain(parsed.allStocks || parsed.stocks || []));
       setScanMode(parsed.scanMode || 'filtered');
       setLastScanDate(parsed.date);
       setHasScanned(true);
@@ -71,15 +76,22 @@ export default function Dashboard() {
       const data = await response.json();
       if (data.topStocks && data.topStocks.length > 0) {
         setTopStocks(data.topStocks);
+        setAllStocks(sortStocksByGain(data.allReports || data.topStocks || []));
         setScanMode(data.scanMode || 'filtered');
         setActiveSymbol(data.topStocks[0].symbol);
         setSelectedSymbol(null);
         setAnalysis(null);
-        const scanData = { stocks: data.topStocks, date: new Date().toLocaleString(), scanMode: data.scanMode };
+        const scanData = {
+          stocks: data.topStocks,
+          allStocks: data.allReports || data.topStocks,
+          date: new Date().toLocaleString(),
+          scanMode: data.scanMode,
+        };
         setLastScanDate(scanData.date);
         localStorage.setItem('last_scan_result_v2', JSON.stringify(scanData));
       } else {
         setTopStocks([]);
+        setAllStocks([]);
         setScanMode('filtered');
       }
     } catch (error) {
@@ -93,6 +105,19 @@ export default function Dashboard() {
   const handleSelectStock = (symbol: string) => {
     setSelectedSymbol(symbol);
     setActiveSymbol(symbol);
+  };
+
+  const handleScrollToNiftyTable = () => {
+    if (allStocks.length > 0) {
+      const sortedAllStocks = sortStocksByGain(allStocks);
+      setTopStocks(sortedAllStocks);
+      setAllStocks(sortedAllStocks);
+      setScanMode('full_list');
+      if (!selectedSymbol && sortedAllStocks[0]?.symbol) {
+        setActiveSymbol(sortedAllStocks[0].symbol);
+      }
+    }
+    niftyTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleAnalyze = async (symbol: string) => {
@@ -169,17 +194,17 @@ export default function Dashboard() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(99,102,241,0.08)_0%,transparent_50%)] pointer-events-none" />
 
       <header className="sticky top-0 z-40 w-full border-b border-white/5 bg-[#05070A]/80 backdrop-blur-xl">
-        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-3 sm:h-16 sm:py-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
               <Shield className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-xl font-black tracking-tight text-white uppercase italic">
+            <h1 className="text-lg sm:text-xl font-black tracking-tight text-white uppercase italic">
               GRAVITY<span className="text-indigo-500 not-italic">SCAN</span>
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             {lastScanDate && (
               <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 text-[10px] uppercase tracking-widest text-slate-500 font-bold">
                 <History className="w-3 h-3" />
@@ -189,19 +214,27 @@ export default function Dashboard() {
             <button
               onClick={handleScan}
               disabled={loading}
-              className={`flex items-center gap-2 px-6 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-white rounded-full font-bold text-sm shadow-xl shadow-indigo-500/20 transition-all ${loading ? 'animate-pulse' : ''}`}
+              className={`flex items-center gap-2 px-4 sm:px-6 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-white rounded-full font-bold text-xs sm:text-sm shadow-xl shadow-indigo-500/20 transition-all ${loading ? 'animate-pulse' : ''}`}
             >
               <Play className={`w-4 h-4 ${loading ? 'opacity-0' : ''}`} />
               {loading ? 'SCANNING NIFTY 50...' : 'RUN SCAN'}
+            </button>
+            <button
+              onClick={handleScrollToNiftyTable}
+              className="flex items-center gap-2 px-4 py-2 border border-indigo-400/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-100 rounded-full font-bold text-xs tracking-wider transition-all"
+              title="Show the full Nifty 50 table"
+            >
+              <span className="sm:hidden">TABLE</span>
+              <span className="hidden sm:inline">NIFTY 50 TABLE</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto p-6 flex flex-col gap-6 relative flex-1 w-full">
+      <main className="max-w-[1600px] mx-auto p-3 sm:p-6 flex flex-col gap-6 relative flex-1 w-full">
         <section className="w-full space-y-6">
           <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-            <div className="xl:col-span-3">
+            <div ref={niftyTableRef} className="xl:col-span-3">
               <ResultDisplay
                 data={topStocks}
                 loading={loading}
@@ -457,14 +490,14 @@ export default function Dashboard() {
             <NewsPanel symbol={selectedSymbol} />
           )}
 
-          <div className="h-[600px] w-full">
+          <div className="h-[460px] sm:h-[600px] w-full">
             <ChartContainer symbol={activeSymbol} />
           </div>
         </section>
       </main>
 
       <footer className="w-full border-t border-white/5 py-8 mt-12 bg-black/20">
-        <div className="max-w-[1600px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="text-[10px] font-bold text-slate-600 tracking-widest uppercase">
             © 2026 GRAVITYSCAN PERSONAL ANALYTICS
           </div>

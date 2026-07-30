@@ -26,6 +26,8 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
   const [chartHeightPercent, setChartHeightPercent] = useState(70);
   const isDragging = useRef(false);
   const suppressSyncRef = useRef(false); // shared flag: suppress time-scale sync during programmatic fitContent()
+  const hasPriceDataRef = useRef(false);
+  const hasRsiDataRef = useRef(false);
 
   const startResize = () => {
     isDragging.current = true;
@@ -150,9 +152,16 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
 
     chart.timeScale().subscribeVisibleTimeRangeChange((range) => {
       if (syncing || suppressSyncRef.current || !range) return;
+      if (!hasPriceDataRef.current || !hasRsiDataRef.current) return;
       const fromTime = toTimestamp(range.from);
       const toTime = toTimestamp(range.to);
-      if (fromTime == null || toTime == null || fromTime >= toTime) return;
+      if (
+        fromTime == null ||
+        toTime == null ||
+        !Number.isFinite(fromTime) ||
+        !Number.isFinite(toTime) ||
+        fromTime >= toTime
+      ) return;
       syncing = true;
       try {
         rsiChart.timeScale().setVisibleRange({ from: fromTime, to: toTime } as any);
@@ -164,9 +173,16 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
 
     rsiChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
       if (syncing || suppressSyncRef.current || !range) return;
+      if (!hasPriceDataRef.current || !hasRsiDataRef.current) return;
       const fromTime = toTimestamp(range.from);
       const toTime = toTimestamp(range.to);
-      if (fromTime == null || toTime == null || fromTime >= toTime) return;
+      if (
+        fromTime == null ||
+        toTime == null ||
+        !Number.isFinite(fromTime) ||
+        !Number.isFinite(toTime) ||
+        fromTime >= toTime
+      ) return;
       syncing = true;
       try {
         chart.timeScale().setVisibleRange({ from: fromTime, to: toTime } as any);
@@ -227,6 +243,7 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
             console.table(data.candles.slice(-5)); // Log last 5 points
           }
           candleSeriesRef.current.setData(data.candles);
+          hasPriceDataRef.current = data.candles.length > 0;
         }
 
         if (volumeSeriesRef.current && data.candles) {
@@ -236,6 +253,7 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
         if (rsiSeriesRef.current && data.rsiData) {
           console.log(`[CHART] Setting ${data.rsiData.length} RSI points`);
           rsiSeriesRef.current.setData(data.rsiData);
+          hasRsiDataRef.current = data.rsiData.length > 0;
         }
 
         if (rsiSmaSeriesRef.current && data.rsiSmaData) {
@@ -259,20 +277,22 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
       // Clear data before fetching new symbol
       if (candleSeriesRef.current) candleSeriesRef.current.setData([]);
       if (rsiSeriesRef.current) rsiSeriesRef.current.setData([]);
+      hasPriceDataRef.current = false;
+      hasRsiDataRef.current = false;
       fetchData();
     }
   }, [symbol]);
 
   return (
-    <div className="flex flex-col gap-1 h-[600px] bg-[#05070A] border border-white/5 rounded-2xl overflow-hidden shadow-2xl group">
+    <div className="flex flex-col gap-1 h-[460px] sm:h-[600px] bg-[#05070A] border border-white/5 rounded-2xl overflow-hidden shadow-2xl group">
       {/* Header Panel */}
-      <div className="flex items-center justify-between px-6 py-3 bg-white/5 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em]">{symbol || 'SELECT SYMBOL'}</span>
-          <span className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">Weekly Data Engine</span>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-2.5 sm:py-3 bg-white/5 border-b border-white/5">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <span className="text-[10px] sm:text-xs font-black text-indigo-400 uppercase tracking-[0.2em]">{symbol || 'SELECT SYMBOL'}</span>
+          <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold tracking-widest uppercase">Weekly Data Engine</span>
           {loading && <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />}
         </div>
-        <div className="text-[10px] font-bold text-slate-600 tracking-widest flex items-center gap-2">
+        <div className="text-[9px] sm:text-[10px] font-bold text-slate-600 tracking-widest flex items-center gap-2">
           {error ? 'SERVICE ERROR' : 'REAL-TIME CLOUD SYNCED'}
           <div className={`w-1.5 h-1.5 rounded-full ${error ? 'bg-rose-500' : 'bg-emerald-500'}`} />
         </div>
@@ -296,18 +316,18 @@ export default function ChartContainer({ symbol }: ChartContainerProps) {
 
           <div
             onMouseDown={startResize}
-            className="h-1 bg-white/10 hover:bg-indigo-500 cursor-row-resize flex items-center justify-center transition-colors shadow-[0_0_10px_rgba(99,102,241,0.5)] z-20 relative"
+            className="hidden md:flex h-1 bg-white/10 hover:bg-indigo-500 cursor-row-resize items-center justify-center transition-colors shadow-[0_0_10px_rgba(99,102,241,0.5)] z-20 relative"
           >
             <div className="w-12 h-0.5 bg-white/30 rounded-full" />
           </div>
 
           <div style={{ height: `${100 - chartHeightPercent}%` }} className="flex flex-col relative z-0">
-            <div className="px-6 py-1 bg-white/5 border-b border-white/5 flex items-center justify-between shrink-0">
-              <span className="text-[9px] font-black text-slate-400 flex gap-4 uppercase tracking-widest">
+            <div className="px-3 sm:px-6 py-1 bg-white/5 border-b border-white/5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between shrink-0">
+              <span className="text-[8px] sm:text-[9px] font-black text-slate-400 flex gap-3 sm:gap-4 uppercase tracking-widest">
                 <span className="text-indigo-400 border-b border-indigo-400">RSI (14)</span>
                 <span className="text-amber-400 border-b border-amber-400">SMA (14)</span>
               </span>
-              <div className="flex gap-4 text-[9px] font-bold">
+              <div className="flex gap-3 sm:gap-4 text-[8px] sm:text-[9px] font-bold">
                 <span className="text-red-500/60 uppercase">Overbought (70)</span>
                 <span className="text-emerald-500/60 uppercase">Oversold (30)</span>
               </div>
