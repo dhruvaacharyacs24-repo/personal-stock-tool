@@ -25,6 +25,64 @@ function Pill({ label }: { label: string }) {
   );
 }
 
+function buildEarningsSummary(fundamentals: FundamentalSnapshot): string {
+  const revenueGrowth = fundamentals.earnings.revenueGrowthQoQ;
+  const profitGrowth = fundamentals.earnings.profitGrowthQoQ;
+  const marginDelta = fundamentals.earnings.marginDelta;
+  const surprisePct = fundamentals.earnings.surprisePct;
+  const revenueB = fundamentals.earnings.latestQuarterRevenue != null
+    ? `₹${(fundamentals.earnings.latestQuarterRevenue / 1e9).toFixed(1)}B`
+    : 'the reported level';
+  const profitB = fundamentals.earnings.latestQuarterProfit != null
+    ? `₹${(fundamentals.earnings.latestQuarterProfit / 1e9).toFixed(1)}B`
+    : 'the reported level';
+
+  const revenueSentence = revenueGrowth == null
+    ? `Revenue data is incomplete, so the top-line readout relies on the latest reported quarter at ${revenueB}.`
+    : revenueGrowth > 15
+      ? `Revenue jumped ${revenueGrowth.toFixed(1)}% QoQ to ${revenueB}, which is a clear acceleration signal rather than a flat or defensive quarter.`
+      : revenueGrowth > 0
+        ? `Revenue rose ${revenueGrowth.toFixed(1)}% QoQ to ${revenueB}, which is constructive but still needs follow-through to confirm durable momentum.`
+        : `Revenue fell ${Math.abs(revenueGrowth).toFixed(1)}% QoQ to ${revenueB}, so top-line momentum is under pressure and needs a catalyst to recover.`;
+
+  const profitSentence = profitGrowth == null
+    ? `Profit data is incomplete, although the latest quarter shows profit at ${profitB}.`
+    : profitGrowth > 15
+      ? `Profit expanded ${profitGrowth.toFixed(1)}% QoQ to ${profitB}, showing operating leverage and stronger earnings quality.`
+      : profitGrowth > 0
+        ? `Profit improved ${profitGrowth.toFixed(1)}% QoQ to ${profitB}, but the pace is moderate rather than explosive.`
+        : `Profit declined ${Math.abs(profitGrowth).toFixed(1)}% QoQ to ${profitB}, which weakens the earnings quality narrative.`;
+
+  const marginSentence = marginDelta == null
+    ? 'Margin direction is not available, so the quarter should be judged mainly on revenue and profit trends.'
+    : marginDelta > 2
+      ? `Margins expanded by ${marginDelta.toFixed(1)} pts, a strong sign that cost control and pricing power are working together.`
+      : marginDelta > 0
+        ? `Margins expanded by ${marginDelta.toFixed(1)} pts, which supports the idea that the business is becoming a little more efficient.`
+        : marginDelta > -2
+          ? `Margins compressed by ${Math.abs(marginDelta).toFixed(1)} pts, a manageable setback but still a warning for near-term earnings durability.`
+          : `Margins compressed by ${Math.abs(marginDelta).toFixed(1)} pts, which is a meaningful deterioration and can cap the stock's rerating potential.`;
+
+  const surpriseSentence = surprisePct == null
+    ? 'Earnings surprise data is unavailable, so the quarter should be read on the operating trend alone.'
+    : surprisePct > 5
+      ? `The company beat expectations by ${surprisePct.toFixed(1)}%, which strengthens the case for positive estimate revisions.`
+      : surprisePct > 0
+        ? `The company beat expectations by ${surprisePct.toFixed(1)}%, but the margin of outperformance is not large enough to call it a major surprise.`
+        : `The company missed expectations by ${Math.abs(surprisePct).toFixed(1)}%, which puts more pressure on the next quarter to show improvement.`;
+
+  const positiveSignals = [revenueGrowth, profitGrowth, marginDelta, surprisePct].filter((value) => value != null && value > 0).length;
+  const negativeSignals = [revenueGrowth, profitGrowth, marginDelta, surprisePct].filter((value) => value != null && value < 0).length;
+
+  const conclusion = positiveSignals > negativeSignals
+    ? 'Overall, the quarter reads as constructive with improving earnings quality, but the follow-through must confirm that the trend is not just one strong quarter.'
+    : negativeSignals > positiveSignals
+      ? 'Overall, the quarter looks soft, and the stock likely needs a cleaner revenue or margin reset before the earnings picture improves.'
+      : 'Overall, the quarter is balanced, with enough improvement to stay interesting but not enough to call the trend decisively strong.';
+
+  return `${revenueSentence} ${profitSentence} ${marginSentence} ${surpriseSentence} ${conclusion}`;
+}
+
 export default function Dashboard() {
   const niftyTableRef = useRef<HTMLDivElement | null>(null);
   const [activeSymbol, setActiveSymbol] = useState('');
@@ -448,34 +506,10 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-<div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-slate-200">
+                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-slate-200">
                       <div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-emerald-300">AI summary</div>
                       <div className="text-sm leading-6">
-                        {fundamentals.earnings.revenueGrowthQoQ != null && fundamentals.earnings.revenueGrowthQoQ > 15 
-                          ? 'Revenue surged quarter-over-quarter, indicating strong demand acceleration and robust top-line momentum that could drive analyst upgrades.' 
-                          : fundamentals.earnings.revenueGrowthQoQ != null && fundamentals.earnings.revenueGrowthQoQ > 0 
-                            ? 'Revenue is trending upward, showing healthy demand momentum with room for further acceleration if macro conditions remain supportive.' 
-                            : 'Revenue trend needs close monitoring before calling it durable — watch for a catalyst-driven reversal in the coming quarters.'}
-                        {' '}
-                        {fundamentals.earnings.profitGrowthQoQ != null && fundamentals.earnings.profitGrowthQoQ > 15 
-                          ? 'Profit growth is accelerating sharply, driven by operating leverage and cost discipline, which strengthens the earnings quality narrative.' 
-                          : fundamentals.earnings.profitGrowthQoQ != null && fundamentals.earnings.profitGrowthQoQ > 0 
-                            ? 'Profit growth is constructive and supports a stronger earnings profile, though sustainability depends on top-line continuity.' 
-                            : 'Profit growth remains uneven and warrants caution — focus on margin trajectory and working capital efficiency for signs of structural improvement.'}
-                        {' '}
-                        {fundamentals.earnings.marginDelta != null && fundamentals.earnings.marginDelta < -2 
-                          ? 'Margins are compressing meaningfully, signaling cost headwinds or pricing pressure that could weigh on near-term valuation multiples.' 
-                          : fundamentals.earnings.marginDelta != null && fundamentals.earnings.marginDelta < 0 
-                            ? 'Margins are under modest pressure, which can affect near-term sentiment if the trend continues for another quarter.' 
-                            : 'Margins are holding up reasonably well, reflecting operational stability and pricing power in the current environment.'}
-                        {' '}
-                        {fundamentals.earnings.surprisePct != null && fundamentals.earnings.surprisePct > 5 
-                          ? `The company delivered a ${fundamentals.earnings.surprisePct}% earnings surprise, beating expectations convincingly and signaling potential momentum for the next quarter.` 
-                          : fundamentals.earnings.surprisePct != null && fundamentals.earnings.surprisePct > 0 
-                            ? `A ${fundamentals.earnings.surprisePct}% earnings beat reflects operational execution, though the magnitude suggests room for improvement.` 
-                            : fundamentals.earnings.surprisePct != null 
-                              ? `The ${Math.abs(fundamentals.earnings.surprisePct)}% earnings miss raises concerns about guidance credibility and near-term growth trajectory.` 
-                              : ''}
+                        {buildEarningsSummary(fundamentals)}
                       </div>
                     </div>
                   </div>

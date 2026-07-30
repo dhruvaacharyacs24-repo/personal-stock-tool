@@ -16,6 +16,7 @@ interface NewsArticle {
 
 interface SentimentData {
   overall: string;
+  confidence?: string;
   reasoning: string[];
   risks: string[];
 }
@@ -219,6 +220,14 @@ export default function NewsPanel({ symbol, onClose }: NewsPanelProps) {
                       ))}
                     </ul>
                   </div>
+
+                  {sentiment.confidence && (
+                    <div className="flex justify-start">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] uppercase tracking-[0.25em] text-slate-300">
+                        {sentiment.confidence}%
+                      </span>
+                    </div>
+                  )}
 
                   <div>
                     <p className="text-[9px] uppercase tracking-[0.25em] text-rose-400/80 mb-2 flex items-center gap-1.5">

@@ -5,12 +5,54 @@ export const dynamic = 'force-dynamic';
 
 const NEWS_TIMEOUT_MS = Number(process.env.NEWS_FETCH_TIMEOUT_MS || 12000);
 
+type SentimentPayload = {
+  overall: string;
+  confidence: string;
+  reasoning: string[];
+  risks: string[];
+};
+
 function withTimeout(signalMs: number) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), signalMs);
   return {
     signal: controller.signal,
     clear: () => clearTimeout(timeout),
+  };
+}
+
+function isGenericText(text: string) {
+  const lower = text.toLowerCase();
+  return (
+    !text.trim() ||
+    lower.includes('market conditions') ||
+    lower.includes('monitor closely') ||
+    lower.includes('overall sentiment') ||
+    lower.includes('could impact') ||
+    lower.includes('support and resistance') ||
+    lower.includes('technical setup')
+  );
+}
+
+function fallbackSentiment(companyName: string, cleanNews: any[]) {
+  const headlines = cleanNews.slice(0, 3).map((n: any) => n.title).filter(Boolean);
+  const sources = cleanNews.slice(0, 3).map((n: any) => n.publisher).filter(Boolean);
+  const headlineText = headlines.length > 0 ? headlines.join('; ') : 'the available news flow';
+  const sourceText = sources.length > 0 ? Array.from(new Set(sources)).join(', ') : 'news sources';
+
+  return {
+    overall: 'Neutral',
+    confidence: '55',
+    reasoning: [
+      `${companyName} news flow is currently limited to ${headlines.length} concrete headline(s) from ${sourceText}.`,
+      `The visible items mention ${headlineText}, which is enough for a directional read but not a high-conviction one.`,
+      'Until a clearer earnings, guidance, regulation, or order-book catalyst appears, a neutral stance is more defensible than forcing a bias.',
+    ],
+    risks: [
+      'Headline coverage may be incomplete, so a single positive or negative story can overstate the true trend.',
+      'If the company has a major event outside the surfaced headlines, sentiment may shift quickly.',
+      'News-driven momentum can fade fast without follow-through in price or volume.',
+    ],
   };
 }
 
@@ -178,13 +220,20 @@ export async function POST(req: Request) {
 
     // AI Sentiment via Groq
     const apiKey = process.env.GROQ_API_KEY;
-    let sentiment = { overall: 'Neutral', reasoning: [] as string[], risks: [] as string[] };
+    let sentiment: SentimentPayload = {
+      overall: 'Neutral',
+      confidence: '55',
+      reasoning: [],
+      risks: [],
+    };
 
     if (apiKey && cleanNews.length > 0) {
       try {
-        const newsText = cleanNews.slice(0, 6).map((n: any, i: number) =>
-          `${i+1}. [${n.publisher}] ${n.title}`
-        ).join('\n');
+        const newsText = cleanNews.slice(0, 8).map((n: any, i: number) => {
+          const date = n.date ? new Date(n.date).toLocaleDateString('en-IN') : 'unknown date';
+          const description = n.description ? String(n.description).replace(/\s+/g, ' ').trim() : 'No description provided.';
+          return `${i + 1}. [${n.publisher}] (${date}) ${n.title}\n   Context: ${description}`;
+        }).join('\n');
 
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -192,21 +241,29 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             model: 'llama-3.3-70b-versatile',
             messages: [
-              { role: 'system', content: 'You are a financial news sentiment analyst. Return only strict JSON.' },
-              { role: 'user', content: `Analyze these recent news headlines for ${cleanSymbol} (${companyName}) and provide a sentiment assessment.
+              { role: 'system', content: 'You are a precise buy-side financial news analyst. Use only the supplied headlines and descriptions. Return only strict JSON. Never write generic or templated language.' },
+              { role: 'user', content: `Analyze these recent news items for ${cleanSymbol} (${companyName}) and produce a stock-specific sentiment view.
 
 Recent news:
 ${newsText}
 
-Return ONLY JSON:
+Rules:
+- Base every statement on the supplied headlines or descriptions.
+- Do not use generic phrases like "market conditions", "monitor closely", or "overall sentiment" unless you tie them to a specific headline.
+- If the headlines are mixed, say Neutral and explain why.
+- If the evidence is thin, say Neutral with explicit uncertainty instead of inventing a bullish or bearish thesis.
+- Each reasoning item must mention a concrete event or headline theme and the likely implication for ${cleanSymbol}.
+
+Return ONLY JSON in this exact shape:
 {
   "overall": "Bullish|Neutral|Bearish",
-  "reasoning": ["reason 1", "reason 2", "reason 3"],
-  "risks": ["risk 1", "risk 2", "risk 3"]
+  "confidence": "0-100",
+  "reasoning": ["specific reason 1", "specific reason 2", "specific reason 3"],
+  "risks": ["specific risk 1", "specific risk 2", "specific risk 3"]
 }
 No markdown.` },
             ],
-            temperature: 0.2,
+            temperature: 0.15,
           }),
         });
         if (response.ok) {
@@ -214,15 +271,23 @@ No markdown.` },
           const cleaned = (data?.choices?.[0]?.message?.content || '{}').replace(/```json|```/g, '').trim();
           const match = cleaned.match(/\{[\s\S]*\}/);
           const parsed = JSON.parse(match ? match[0] : cleaned);
+          const fallback = fallbackSentiment(companyName, cleanNews);
+          const reasoning = Array.isArray(parsed.reasoning) ? parsed.reasoning.map((item: any) => String(item).trim()).filter(Boolean) : [];
+          const risks = Array.isArray(parsed.risks) ? parsed.risks.map((item: any) => String(item).trim()).filter(Boolean) : [];
           sentiment = {
             overall: parsed.overall || 'Neutral',
-            reasoning: Array.isArray(parsed.reasoning) ? parsed.reasoning : ['News-based sentiment analysis.'],
-            risks: Array.isArray(parsed.risks) ? parsed.risks : ['Monitor for negative news flow.'],
+            confidence: parsed.confidence ? String(parsed.confidence) : fallback.confidence,
+            reasoning: reasoning.length > 0 ? reasoning : fallback.reasoning,
+            risks: risks.length > 0 ? risks : fallback.risks,
           };
         }
       } catch (aiError) {
         console.error('[NEWS] AI sentiment error:', aiError);
       }
+    }
+
+    if (!sentiment.reasoning.length || !sentiment.risks.length) {
+      sentiment = fallbackSentiment(companyName, cleanNews);
     }
 
     if (cleanNews.length === 0 && sourceErrors.length > 0) {
