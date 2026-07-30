@@ -1,170 +1,195 @@
 import { NextResponse } from 'next/server';
-import yf from 'yahoo-finance2';
 
-const yahooFinance = new (yf as any)();
-
-interface NewsArticle {
-  uuid: string;
-  title: string;
-  publisher: string;
-  link: string;
-  providerPublishTime: string;
-  type: string;
-  thumbnail?: { resolutions: { url: string; width: number; height: number }[] };
-  relatedTickers?: string[];
-  summary?: string;
-}
-
+/**
+ * Fetches stock-specific news by aggregating from:
+ * 1. Yahoo Finance v1 search API (for relatedTickers matching)
+ * 2. Google News RSS (most reliable for Indian stocks)
+ */
 export async function POST(req: Request) {
   try {
     const { symbol } = await req.json();
-
     if (!symbol) {
       return NextResponse.json({ error: 'Symbol required' }, { status: 400 });
     }
 
-    // Strip .NS or .BO suffix for better search results
-    const searchQuery = symbol.replace(/\.(NS|BO)$/, '');
-    
-    // Also try with common Indian company name patterns
-    let news: NewsArticle[] = [];
-    
-    try {
-      const result = await (yahooFinance as any).search(searchQuery);
-      news = (result?.news || []) as NewsArticle[];
-    } catch (searchError: any) {
-      // The validation error still has the data in result
-      if (searchError?.result?.news) {
-        news = searchError.result.news as NewsArticle[];
-      }
+    const cleanSymbol = symbol.toUpperCase().replace(/\.(NS|BO)$/, '');
+    const fullSymbol = symbol.toUpperCase();
+    const seenTitles = new Set<string>();
+    const articles: any[] = [];
+
+    function addArticle(item: any) {
+      const title = (item.title || '').trim();
+      const link = item.link || item.url || '';
+      if (!title || !link) return;
+      const key = title.toLowerCase().trim();
+      if (seenTitles.has(key)) return;
+      seenTitles.add(key);
+      articles.push({
+        uuid: item.uuid || item.guid || `news-${Math.random().toString(36).slice(2)}`,
+        title,
+        publisher: item.publisher || item.source || 'Financial News',
+        link,
+        date: item.date ? new Date(item.date).toISOString() : new Date().toISOString(),
+        thumbnail: item.thumbnail || null,
+        relatedTickers: item.relatedTickers || [cleanSymbol],
+      });
     }
 
-    // If not enough news from symbol, try with the full name from assetProfile
-    if (!news || news.length < 2) {
+    // === STRATEGY 1: Google News RSS (most reliable for Indian stocks) ===
+    async function fetchGoogleNews(query: string) {
       try {
-        const profileResult = await (yahooFinance as any).quoteSummary(symbol.toUpperCase(), {
-          modules: ['assetProfile'],
+        const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+          signal: AbortSignal.timeout(5000),
         });
-        const companyName = profileResult?.assetProfile?.longBusinessSummary?.split('.')[0] || '';
-        
-        if (companyName) {
-          try {
-            const nameResult = await (yahooFinance as any).search(`${companyName} stock news`);
-            const nameNews = (nameResult?.news || []) as NewsArticle[];
-            if (nameNews.length > news.length) news = nameNews;
-          } catch (e2: any) {
-            if (e2?.result?.news && e2.result.news.length > news.length) {
-              news = e2.result.news as NewsArticle[];
+        if (!res.ok) return;
+        const xml = await res.text();
+        // Simple XML parsing for RSS items
+        const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+        let match;
+        while ((match = itemRegex.exec(xml)) !== null) {
+          const itemXml = match[1];
+          const extract = (tag: string) => {
+            const m = itemXml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
+            return m ? m[1].trim() : '';
+          };
+          const title = extract('title').replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+          const link = extract('link');
+          const guid = extract('guid');
+          const pubDate = extract('pubDate');
+          const source = extract('source');
+          const description = extract('description').replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+          if (title && link) {
+            addArticle({
+              title,
+              link: link.startsWith('http') ? link : `https://news.google.com${link}`,
+              guid,
+              date: pubDate,
+              publisher: source || 'Google News',
+              description,
+            });
+          }
+        }
+      } catch {}
+    }
+
+    // Get company name for better search
+    let companyName = cleanSymbol;
+    try {
+      const res = await fetch(
+        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(fullSymbol)}?modules=assetProfile`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(3000) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const longName = data?.quoteSummary?.result?.[0]?.assetProfile?.longBusinessSummary;
+        if (longName) {
+          const name = longName.split('.')[0]?.trim();
+          if (name && name.length > 3 && name.length < 60) companyName = name;
+        }
+      }
+    } catch {}
+
+    // Fetch from Google News with multiple queries
+    const queries = [
+      `${companyName} stock`,
+      `${companyName} NSE`,
+      `"${cleanSymbol}" stock`,
+      companyName,
+    ];
+
+    await Promise.all(queries.map(q => fetchGoogleNews(q)));
+
+    // === STRATEGY 2: Yahoo Finance search (for relatedTickers matching) ===
+    try {
+      const yahooUrls = [
+        `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(fullSymbol)}&quotesCount=0&newsCount=10`,
+        `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(cleanSymbol)}&quotesCount=0&newsCount=10`,
+      ];
+      const results = await Promise.all(
+        yahooUrls.map(url =>
+          fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0', Origin: 'https://finance.yahoo.com' },
+            signal: AbortSignal.timeout(4000),
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        )
+      );
+      for (const data of results) {
+        if (data?.news) {
+          for (const item of data.news) {
+            if (!item.title || !item.link) continue;
+            // Only add if it mentions our symbol in relatedTickers
+            const tickers = (item.relatedTickers || []).map((t: string) => t.toLowerCase());
+            if (tickers.includes(cleanSymbol.toLowerCase())) {
+              addArticle({
+                ...item,
+                publisher: item.publisher || 'Yahoo Finance',
+                date: typeof item.providerPublishTime === 'number'
+                  ? new Date(item.providerPublishTime * 1000).toISOString()
+                  : item.providerPublishTime,
+                thumbnail: item.thumbnail?.resolutions?.[0]?.url || null,
+              });
             }
           }
         }
-      } catch (profileError) {
-        // Ignore profile fetch error
       }
-    }
+    } catch {}
 
-    // Map to clean format, filter out unrelated news
-    const cleanNews = (news || [])
-      .filter((n: NewsArticle) => n.title && n.link && n.publisher)
-      .slice(0, 10)
-      .map((n: NewsArticle) => ({
-        uuid: n.uuid,
-        title: n.title,
-        publisher: n.publisher,
-        link: n.link,
-        date: n.providerPublishTime,
-        thumbnail: n.thumbnail?.resolutions?.[0]?.url || null,
-        relatedTickers: n.relatedTickers || [],
-      }));
+    const cleanNews = articles.slice(0, 10);
 
-    // Run AI sentiment analysis using Groq
+    // AI Sentiment via Groq
     const apiKey = process.env.GROQ_API_KEY;
-    let sentiment = {
-      overall: 'Neutral',
-      reasoning: [] as string[],
-      risks: [] as string[],
-    };
+    let sentiment = { overall: 'Neutral', reasoning: [] as string[], risks: [] as string[] };
 
     if (apiKey && cleanNews.length > 0) {
       try {
-        const newsText = cleanNews.slice(0, 6).map((n: any, i: number) => 
+        const newsText = cleanNews.slice(0, 6).map((n: any, i: number) =>
           `${i+1}. [${n.publisher}] ${n.title}`
         ).join('\n');
 
-        const sentimentPrompt = `You are a financial news analyst. Analyze these recent news headlines for ${searchQuery} stock and provide a sentiment assessment.
-
-Recent news:
-${newsText}
-
-Return ONLY a JSON object with this exact structure:
-{
-  "overall": "Bullish|Neutral|Bearish",
-  "reasoning": ["specific reason 1 based on news", "specific reason 2", "specific reason 3"],
-  "risks": ["specific risk 1", "specific risk 2", "specific risk 3"]
-}
-
-Each reasoning and risk should be 10-20 words, directly referencing the news content. No markdown, no code fences.`;
-
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
             model: 'llama-3.3-70b-versatile',
             messages: [
               { role: 'system', content: 'You are a financial news sentiment analyst. Return only strict JSON.' },
-              { role: 'user', content: sentimentPrompt },
+              { role: 'user', content: `Analyze these recent news headlines for ${cleanSymbol} (${companyName}) and provide a sentiment assessment.
+
+Recent news:
+${newsText}
+
+Return ONLY JSON:
+{
+  "overall": "Bullish|Neutral|Bearish",
+  "reasoning": ["reason 1", "reason 2", "reason 3"],
+  "risks": ["risk 1", "risk 2", "risk 3"]
+}
+No markdown.` },
             ],
             temperature: 0.2,
           }),
         });
-
         if (response.ok) {
           const data = await response.json();
-          const content = data?.choices?.[0]?.message?.content || '{}';
-          const cleaned = content.replace(/```json|```/g, '').trim();
+          const cleaned = (data?.choices?.[0]?.message?.content || '{}').replace(/```json|```/g, '').trim();
           const match = cleaned.match(/\{[\s\S]*\}/);
-          const jsonText = match ? match[0] : cleaned;
-          const parsed = JSON.parse(jsonText);
-          
+          const parsed = JSON.parse(match ? match[0] : cleaned);
           sentiment = {
             overall: parsed.overall || 'Neutral',
-            reasoning: Array.isArray(parsed.reasoning) ? parsed.reasoning : ['News-based sentiment analysis available.'],
+            reasoning: Array.isArray(parsed.reasoning) ? parsed.reasoning : ['News-based sentiment analysis.'],
             risks: Array.isArray(parsed.risks) ? parsed.risks : ['Monitor for negative news flow.'],
           };
         }
       } catch (aiError) {
         console.error('[NEWS] AI sentiment error:', aiError);
-        // Fallback sentiment based on basic keyword analysis
-        const bullishWords = ['surge', 'profit', 'growth', 'upgrade', 'beat', 'win', 'positive', 'expansion', 'partnership', 'order'];
-        const bearishWords = ['cut', 'loss', 'decline', 'miss', 'downgrade', 'risk', 'slowdown', 'investigation', 'fraud', 'fine'];
-        
-        let bullishCount = 0;
-        let bearishCount = 0;
-        cleanNews.forEach((n: any) => {
-          const title = (n.title || '').toLowerCase();
-          bullishWords.forEach(w => { if (title.includes(w)) bullishCount++; });
-          bearishWords.forEach(w => { if (title.includes(w)) bearishCount++; });
-        });
-
-        sentiment = {
-          overall: bullishCount > bearishCount ? 'Bullish' : bearishCount > bullishCount ? 'Bearish' : 'Neutral',
-          reasoning: [`Based on ${cleanNews.length} recent news headlines`],
-          risks: ['Market conditions may change rapidly'],
-        };
       }
     }
 
-    return NextResponse.json({
-      news: cleanNews,
-      sentiment,
-      source: 'Yahoo Finance',
-    });
+    return NextResponse.json({ news: cleanNews, sentiment, source: 'Google News + Yahoo Finance' });
   } catch (error) {
     console.error('News API error:', error);
     return NextResponse.json({ error: 'News fetch failed' }, { status: 500 });
   }
 }
-
