@@ -8,6 +8,23 @@ import { FundamentalSnapshot, StockData } from '@/lib/stock-service';
 import { Activity, History, Play, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+type NewsSentiment = {
+  overall: string;
+  confidence?: string;
+  reasoning: string[];
+  risks: string[];
+};
+
+type ScoreBreakdown = {
+  technical: number;
+  fundamental: number;
+  news: number;
+  valuation: number;
+  momentum: number;
+  finalScore: number;
+  verdict: string;
+};
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
@@ -22,6 +39,77 @@ function Pill({ label }: { label: string }) {
     <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.25em] text-indigo-200">
       {label}
     </span>
+  );
+}
+
+function getScoreTone(score: number) {
+  if (score >= 80) {
+    return {
+      text: 'text-emerald-300',
+      bg: 'bg-emerald-500/10',
+      border: 'border-emerald-500/20',
+      fill: 'from-emerald-400 via-lime-300 to-emerald-300',
+      label: 'Strong Buy',
+    };
+  }
+  if (score >= 65) {
+    return {
+      text: 'text-lime-300',
+      bg: 'bg-lime-500/10',
+      border: 'border-lime-500/20',
+      fill: 'from-lime-400 via-emerald-300 to-lime-200',
+      label: 'Buy',
+    };
+  }
+  if (score >= 45) {
+    return {
+      text: 'text-amber-300',
+      bg: 'bg-amber-500/10',
+      border: 'border-amber-500/20',
+      fill: 'from-amber-400 via-yellow-300 to-amber-200',
+      label: 'Hold',
+    };
+  }
+  if (score >= 30) {
+    return {
+      text: 'text-rose-300',
+      bg: 'bg-rose-500/10',
+      border: 'border-rose-500/20',
+      fill: 'from-rose-400 via-orange-300 to-rose-200',
+      label: 'Sell',
+    };
+  }
+  return {
+    text: 'text-fuchsia-300',
+    bg: 'bg-fuchsia-500/10',
+    border: 'border-fuchsia-500/20',
+    fill: 'from-fuchsia-400 via-rose-300 to-fuchsia-200',
+    label: 'Strong Sell',
+  };
+}
+
+function ScoreTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: ReturnType<typeof getScoreTone>;
+}) {
+  return (
+    <div className={`rounded-xl border ${tone.border} ${tone.bg} px-3 py-2.5 min-h-[4.35rem] flex flex-col justify-between gap-2`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9px] uppercase tracking-[0.25em] text-slate-500 leading-none">{label}</span>
+        <span className={`text-[11px] font-black leading-none ${tone.text}`}>{value}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-black/30 overflow-hidden">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${tone.fill}`}
+          style={{ width: `${value}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -83,6 +171,123 @@ function buildEarningsSummary(fundamentals: FundamentalSnapshot): string {
   return `${revenueSentence} ${profitSentence} ${marginSentence} ${surpriseSentence} ${conclusion}`;
 }
 
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function scoreTechnical(stock?: StockData | null): number {
+  if (!stock) return 50;
+  let score = 50;
+
+  score += stock.isAboveSMA ? 15 : -10;
+
+  if (stock.rsi >= 45 && stock.rsi <= 60) score += 15;
+  else if (stock.rsi >= 35 && stock.rsi < 45) score += 8;
+  else if (stock.rsi > 60 && stock.rsi <= 70) score += 5;
+  else if (stock.rsi < 30) score += 5;
+  else if (stock.rsi > 75) score -= 8;
+
+  if (stock.priceChangePct > 5) score += 10;
+  else if (stock.priceChangePct > 0) score += 5;
+  else if (stock.priceChangePct < -5) score -= 10;
+  else if (stock.priceChangePct < 0) score -= 5;
+
+  if (stock.volume > 300000) score += 5;
+
+  return clampScore(score);
+}
+
+function scoreFundamental(fundamentals?: FundamentalSnapshot | null): number {
+  if (!fundamentals) return 50;
+  return clampScore((fundamentals.rating ?? 5) * 10);
+}
+
+function scoreNews(sentiment?: NewsSentiment | null): number {
+  if (!sentiment) return 50;
+  const confidence = Number(sentiment.confidence || 55);
+  let base = 50;
+  const lower = sentiment.overall.toLowerCase();
+  if (lower.includes('bullish')) base = 68;
+  else if (lower.includes('bearish')) base = 32;
+
+  const directionBoost = Math.max(0, confidence - 50) * 0.6;
+  const directionPenalty = Math.max(0, 50 - confidence) * 0.35;
+
+  if (lower.includes('bullish')) base += directionBoost;
+  else if (lower.includes('bearish')) base -= directionBoost;
+  else base += confidence > 60 ? 4 : confidence < 45 ? -4 : 0;
+
+  if (sentiment.reasoning.length >= 3) base += 4;
+  if (sentiment.risks.length >= 3) base -= 2;
+
+  return clampScore(base - directionPenalty);
+}
+
+function scoreValuation(fundamentals?: FundamentalSnapshot | null): number {
+  if (!fundamentals) return 50;
+
+  const pe = fundamentals.pe;
+  const pb = fundamentals.pb;
+  let score = 50;
+
+  if (pe != null) {
+    if (pe <= 15) score += 25;
+    else if (pe <= 25) score += 18;
+    else if (pe <= 35) score += 10;
+    else if (pe <= 50) score += 2;
+    else score -= 8;
+  }
+
+  if (pb != null) {
+    if (pb <= 2) score += 15;
+    else if (pb <= 4) score += 8;
+    else if (pb <= 6) score += 2;
+    else score -= 6;
+  }
+
+  if (fundamentals.debtToEquity != null) {
+    if (fundamentals.debtToEquity < 0.5) score += 5;
+    else if (fundamentals.debtToEquity > 1.5) score -= 5;
+  }
+
+  return clampScore(score);
+}
+
+function scoreMomentum(stock?: StockData | null): number {
+  if (!stock) return 50;
+  let score = 50;
+
+  if (stock.priceChangePct > 4) score += 20;
+  else if (stock.priceChangePct > 1.5) score += 12;
+  else if (stock.priceChangePct > 0) score += 6;
+  else if (stock.priceChangePct < -4) score -= 18;
+  else if (stock.priceChangePct < 0) score -= 8;
+
+  if (stock.isAboveSMA) score += 10;
+  if (stock.rsi >= 45 && stock.rsi <= 65) score += 12;
+  else if (stock.rsi < 30) score += 4;
+  else if (stock.rsi > 75) score -= 10;
+
+  return clampScore(score);
+}
+
+function buildBuySellScore(
+  stock?: StockData | null,
+  fundamentals?: FundamentalSnapshot | null,
+  sentiment?: NewsSentiment | null,
+): ScoreBreakdown {
+  const technical = scoreTechnical(stock);
+  const fundamental = scoreFundamental(fundamentals);
+  const news = scoreNews(sentiment);
+  const valuation = scoreValuation(fundamentals);
+  const momentum = scoreMomentum(stock);
+  const finalScore = clampScore((technical * 0.25) + (fundamental * 0.2) + (news * 0.2) + (valuation * 0.15) + (momentum * 0.2));
+
+  const verdict = finalScore >= 80 ? 'Strong Buy' : finalScore >= 65 ? 'Buy' : finalScore >= 45 ? 'Hold' : finalScore >= 30 ? 'Sell' : 'Strong Sell';
+
+  return { technical, fundamental, news, valuation, momentum, finalScore, verdict };
+}
+
 export default function Dashboard() {
   const niftyTableRef = useRef<HTMLDivElement | null>(null);
   const [activeSymbol, setActiveSymbol] = useState('');
@@ -105,6 +310,9 @@ export default function Dashboard() {
   const [fundamentals, setFundamentals] = useState<FundamentalSnapshot | null>(null);
   const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
+  const [newsSentimentLoading, setNewsSentimentLoading] = useState(false);
+  const [newsSentimentError, setNewsSentimentError] = useState<string | null>(null);
   const [scanMode, setScanMode] = useState<'filtered' | 'full_list'>('filtered');
   const [hasScanned, setHasScanned] = useState(false);
 
@@ -240,12 +448,43 @@ export default function Dashboard() {
     }
   };
 
+  const handleLoadNewsSentiment = async (symbol: string) => {
+    setNewsSentimentLoading(true);
+    setNewsSentiment(null);
+    setNewsSentimentError(null);
+    try {
+      const response = await fetch('/api/news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol }),
+      });
+      const data = await response.json();
+      if (data.sentiment) {
+        setNewsSentiment(data.sentiment);
+      } else if (data.error) {
+        setNewsSentimentError(data.error);
+      } else {
+        setNewsSentimentError('No sentiment data returned for this stock.');
+      }
+    } catch (error: any) {
+      console.error('News sentiment failed:', error);
+      setNewsSentimentError(error.message || 'Failed to load news sentiment.');
+    } finally {
+      setNewsSentimentLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedSymbol) {
       handleAnalyze(selectedSymbol);
       handleLoadFundamentals(selectedSymbol);
+      handleLoadNewsSentiment(selectedSymbol);
     }
   }, [selectedSymbol, topStocks]);
+
+  const selectedStock = topStocks.find((item) => item.symbol === selectedSymbol) ?? null;
+  const buySellScore = buildBuySellScore(selectedStock, fundamentals, newsSentiment);
+  const scoreTone = getScoreTone(buySellScore.finalScore);
 
   return (
     <div className="min-h-screen bg-[#05070A] text-slate-200 selection:bg-indigo-500/30 flex flex-col">
@@ -340,14 +579,68 @@ export default function Dashboard() {
                       transition={{ duration: 0.25 }}
                       className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96),rgba(2,6,23,0.98))] p-4 shadow-[0_0_35px_rgba(99,102,241,0.08)]"
                     >
-                      <div className="flex flex-col gap-2 border-b border-white/5 pb-3 mb-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-300 block">AI STOCK ANALYSIS</span>
-                          <div className="text-[10px] uppercase tracking-[0.25em] text-slate-500">
+                      <div className={`rounded-2xl border ${scoreTone.border} ${scoreTone.bg} p-3.5 mb-3 shadow-[0_0_24px_rgba(99,102,241,0.08)]`}>
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-3">
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-300 block">AI BUY / SELL SCORE</span>
+                            <div className="text-[10px] uppercase tracking-[0.25em] text-slate-500">
+                              Composite view from technical, fundamental, news, valuation, and momentum signals
+                            </div>
+                          </div>
+                          <div className={`inline-flex items-center gap-2 self-start rounded-full border ${scoreTone.border} bg-black/20 px-3 py-1.5`}>
+                            <span className={`text-[9px] uppercase tracking-[0.25em] ${scoreTone.text}`}>Verdict</span>
+                            <span className={`text-[10px] font-black uppercase tracking-[0.22em] ${scoreTone.text}`}>{scoreTone.label}</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.2fr_1.8fr] items-stretch">
+                          <div className="rounded-2xl border border-white/10 bg-black/20 p-4 flex flex-col items-center justify-center text-center min-h-[12.5rem]">
+                            <div className="relative flex h-32 w-32 items-center justify-center rounded-full">
+                              <div className={`absolute inset-0 rounded-full bg-[conic-gradient(from_180deg,rgba(15,23,42,0.35)_0%,rgba(15,23,42,0.35)_${100 - buySellScore.finalScore}%,rgba(255,255,255,0.06)_${100 - buySellScore.finalScore}%,rgba(255,255,255,0.06)_100%)]`} />
+                              <div className={`absolute inset-3 rounded-full bg-[conic-gradient(from_180deg,rgba(52,211,153,0.95)_0%,rgba(132,204,22,0.95)_${buySellScore.finalScore}%,rgba(255,255,255,0.08)_${buySellScore.finalScore}%,rgba(255,255,255,0.08)_100%)]`} />
+                              <div className="absolute inset-[18px] rounded-full bg-[#091019] border border-white/10 flex flex-col items-center justify-center">
+                                <span className="text-[9px] uppercase tracking-[0.25em] text-slate-500 leading-none mb-2">Final Score</span>
+                                <span className={`text-3xl font-black leading-none ${scoreTone.text}`}>{buySellScore.finalScore}</span>
+                                <span className="mt-2 text-[9px] uppercase tracking-[0.25em] text-slate-400">/100</span>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-center gap-2 text-[9px] uppercase tracking-[0.25em] text-slate-500 flex-wrap">
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{selectedStock ? selectedStock.symbol.replace('.NS', '') : 'N/A'}</span>
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{newsSentimentLoading ? 'News loading' : newsSentimentError ? 'News fallback' : 'Live inputs'}</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-2 content-start">
+                            <ScoreTile label="Technical" value={buySellScore.technical} tone={scoreTone} />
+                            <ScoreTile label="Fundamental" value={buySellScore.fundamental} tone={scoreTone} />
+                            <ScoreTile label="News" value={buySellScore.news} tone={scoreTone} />
+                            <ScoreTile label="Valuation" value={buySellScore.valuation} tone={scoreTone} />
+                            <div className="sm:col-span-2 xl:col-span-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 flex items-center justify-between gap-4 min-h-[4.35rem]">
+                              <div className="space-y-1">
+                                <span className="text-[9px] uppercase tracking-[0.25em] text-slate-500 block">Momentum</span>
+                                <span className={`text-lg font-black leading-none ${scoreTone.text}`}>{buySellScore.momentum}</span>
+                              </div>
+                              <div className="flex-1 h-2 rounded-full bg-black/30 overflow-hidden">
+                                <div className={`h-full rounded-full bg-gradient-to-r ${scoreTone.fill}`} style={{ width: `${buySellScore.momentum}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between gap-3 text-[9px] uppercase tracking-[0.25em] text-slate-500 flex-wrap">
+                          <span>{newsSentimentLoading ? 'Loading news sentiment...' : newsSentimentError ? 'News sentiment fallback used' : 'Live score from technical, fundamental, news, valuation, and momentum inputs'}</span>
+                          <span>{buySellScore.verdict}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3 border-b border-white/5 pb-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1 min-w-0">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-300 block leading-none">AI STOCK ANALYSIS</span>
+                          <div className="text-[10px] uppercase tracking-[0.25em] text-slate-500 truncate">
                             {selectedSymbol.replace('.NS', '')}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap justify-end">
                           {analysisLoading ? (
                             <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9px] uppercase tracking-[0.25em] text-slate-400">Loading</span>
                           ) : (
@@ -370,16 +663,16 @@ export default function Dashboard() {
                               </div>
                             </div>
                             <div className="grid grid-cols-1 gap-2 text-slate-200 sm:grid-cols-3">
-                              <div className="rounded-lg bg-black/20 px-3 py-2 min-h-[3rem] flex flex-col justify-between gap-1">
-                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Long Term</span>
+                              <div className="rounded-lg bg-black/20 px-3 py-2.5 min-h-[3.4rem] flex flex-col justify-between gap-1">
+                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500 leading-none">Long Term</span>
                                 <span className="font-semibold text-emerald-300 leading-tight">{analysis.longTerm}</span>
                               </div>
-                              <div className="rounded-lg bg-black/20 px-3 py-2 min-h-[3rem] flex flex-col justify-between gap-1">
-                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Swing</span>
+                              <div className="rounded-lg bg-black/20 px-3 py-2.5 min-h-[3.4rem] flex flex-col justify-between gap-1">
+                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500 leading-none">Swing</span>
                                 <span className="font-semibold text-amber-300 leading-tight">{analysis.swing}</span>
                               </div>
-                              <div className="rounded-lg bg-black/20 px-3 py-2 min-h-[3rem] flex flex-col justify-between gap-1">
-                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Intraday</span>
+                              <div className="rounded-lg bg-black/20 px-3 py-2.5 min-h-[3.4rem] flex flex-col justify-between gap-1">
+                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500 leading-none">Intraday</span>
                                 <span className="font-semibold text-rose-300 leading-tight">{analysis.intraday}</span>
                               </div>
                             </div>
@@ -392,7 +685,7 @@ export default function Dashboard() {
                             </div>
                             <ul className="space-y-2 text-slate-300">
                               {analysis.strengths.map((item) => (
-                                <li key={item} className="flex gap-2 items-start">
+                                <li key={item} className="grid grid-cols-[10px_1fr] gap-2 items-start">
                                   <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-400" />
                                   <span className="leading-relaxed">{item}</span>
                                 </li>
@@ -407,7 +700,7 @@ export default function Dashboard() {
                             </div>
                             <ul className="space-y-2 text-slate-300">
                               {analysis.weaknesses.map((item) => (
-                                <li key={item} className="flex gap-2 items-start">
+                                <li key={item} className="grid grid-cols-[10px_1fr] gap-2 items-start">
                                   <span className="mt-1 h-1.5 w-1.5 rounded-full bg-rose-400" />
                                   <span className="leading-relaxed">{item}</span>
                                 </li>
