@@ -12,6 +12,15 @@ type SentimentPayload = {
   risks: string[];
 };
 
+type EvidenceProfile = {
+  score: number;
+  sentimentLabel: 'Bullish' | 'Bearish' | 'Neutral';
+  strongSignals: string[];
+  weakSignals: string[];
+  catalystThemes: string[];
+  headlineNotes: string[];
+};
+
 function withTimeout(signalMs: number) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), signalMs);
@@ -53,6 +62,84 @@ function fallbackSentiment(companyName: string, cleanNews: any[]) {
       'If the company has a major event outside the surfaced headlines, sentiment may shift quickly.',
       'News-driven momentum can fade fast without follow-through in price or volume.',
     ],
+  };
+}
+
+function buildEvidenceProfile(companyName: string, cleanNews: any[]): EvidenceProfile {
+  const positiveRules: Array<{ pattern: RegExp; score: number; theme: string }> = [
+    { pattern: /beat|beats|beats expectations|surge|rally|record|award|approval|contract|order|buyback|upgrade|expansion|profit growth|revenue growth/i, score: 2, theme: 'earnings or business momentum' },
+    { pattern: /guidance raised|raises guidance|strong demand|margin expansion|capacity|launch|wins?|stake increase|acquisition approved/i, score: 2, theme: 'guidance or growth catalyst' },
+    { pattern: /dividend|bonus|buyback|moat|turnaround|profit jumps?|sales jump/i, score: 1, theme: 'shareholder or operating catalyst' },
+  ];
+
+  const negativeRules: Array<{ pattern: RegExp; score: number; theme: string }> = [
+    { pattern: /miss|misses|falls|drop|slump|lawsuit|probe|investigation|fine|penalty|downgrade|cuts guidance|guidance cut/i, score: 2, theme: 'earnings or guidance pressure' },
+    { pattern: /loss|fraud|delay|recall|ban|blocked|shortfall|weak demand|margin pressure|regulatory/i, score: 2, theme: 'execution or regulatory risk' },
+    { pattern: /layoff|layoffs|fears|concern|debt stress|debt burden|cash crunch|slower growth/i, score: 1, theme: 'balance sheet or demand risk' },
+  ];
+
+  const strongSignals: string[] = [];
+  const weakSignals: string[] = [];
+  const catalystThemes = new Set<string>();
+  const headlineNotes: string[] = [];
+  let score = 0;
+
+  for (const article of cleanNews.slice(0, 8)) {
+    const text = `${article.title || ''} ${article.description || ''}`.toLowerCase();
+    let matched = false;
+
+    for (const rule of positiveRules) {
+      if (rule.pattern.test(text)) {
+        score += rule.score;
+        catalystThemes.add(rule.theme);
+        strongSignals.push(article.title);
+        matched = true;
+      }
+    }
+
+    for (const rule of negativeRules) {
+      if (rule.pattern.test(text)) {
+        score -= rule.score;
+        catalystThemes.add(rule.theme);
+        weakSignals.push(article.title);
+        matched = true;
+      }
+    }
+
+    if (!matched) {
+      headlineNotes.push(article.title);
+    }
+  }
+
+  if (score >= 3) {
+    return {
+      score,
+      sentimentLabel: 'Bullish',
+      strongSignals,
+      weakSignals,
+      catalystThemes: Array.from(catalystThemes),
+      headlineNotes,
+    };
+  }
+
+  if (score <= -3) {
+    return {
+      score,
+      sentimentLabel: 'Bearish',
+      strongSignals,
+      weakSignals,
+      catalystThemes: Array.from(catalystThemes),
+      headlineNotes,
+    };
+  }
+
+  return {
+    score,
+    sentimentLabel: 'Neutral',
+    strongSignals,
+    weakSignals,
+    catalystThemes: Array.from(catalystThemes),
+    headlineNotes,
   };
 }
 
@@ -217,6 +304,7 @@ export async function POST(req: Request) {
     }
 
     const cleanNews = articles.slice(0, 10);
+    const evidence = buildEvidenceProfile(companyName, cleanNews);
 
     // AI Sentiment via Groq
     const apiKey = process.env.GROQ_API_KEY;
@@ -234,6 +322,12 @@ export async function POST(req: Request) {
           const description = n.description ? String(n.description).replace(/\s+/g, ' ').trim() : 'No description provided.';
           return `${i + 1}. [${n.publisher}] (${date}) ${n.title}\n   Context: ${description}`;
         }).join('\n');
+        const signalSummary = [
+          `Evidence score: ${evidence.score} (${evidence.sentimentLabel})`,
+          evidence.catalystThemes.length > 0 ? `Detected themes: ${evidence.catalystThemes.join(', ')}` : 'Detected themes: mixed or limited',
+          evidence.strongSignals.length > 0 ? `Positive headlines: ${evidence.strongSignals.slice(0, 3).join(' | ')}` : 'Positive headlines: none strong',
+          evidence.weakSignals.length > 0 ? `Negative headlines: ${evidence.weakSignals.slice(0, 3).join(' | ')}` : 'Negative headlines: none strong',
+        ].join('\n');
 
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -244,6 +338,9 @@ export async function POST(req: Request) {
               { role: 'system', content: 'You are a precise buy-side financial news analyst. Use only the supplied headlines and descriptions. Return only strict JSON. Never write generic or templated language.' },
               { role: 'user', content: `Analyze these recent news items for ${cleanSymbol} (${companyName}) and produce a stock-specific sentiment view.
 
+Headline evidence profile:
+${signalSummary}
+
 Recent news:
 ${newsText}
 
@@ -253,6 +350,7 @@ Rules:
 - If the headlines are mixed, say Neutral and explain why.
 - If the evidence is thin, say Neutral with explicit uncertainty instead of inventing a bullish or bearish thesis.
 - Each reasoning item must mention a concrete event or headline theme and the likely implication for ${cleanSymbol}.
+- When evidence profile is strongly Bullish or Bearish, reflect that in the overall verdict unless the headlines clearly contradict it.
 
 Return ONLY JSON in this exact shape:
 {
@@ -274,11 +372,20 @@ No markdown.` },
           const fallback = fallbackSentiment(companyName, cleanNews);
           const reasoning = Array.isArray(parsed.reasoning) ? parsed.reasoning.map((item: any) => String(item).trim()).filter(Boolean) : [];
           const risks = Array.isArray(parsed.risks) ? parsed.risks.map((item: any) => String(item).trim()).filter(Boolean) : [];
+          const confidenceFromEvidence = evidence.score >= 3 ? '72' : evidence.score <= -3 ? '72' : '55';
           sentiment = {
-            overall: parsed.overall || 'Neutral',
-            confidence: parsed.confidence ? String(parsed.confidence) : fallback.confidence,
-            reasoning: reasoning.length > 0 ? reasoning : fallback.reasoning,
-            risks: risks.length > 0 ? risks : fallback.risks,
+            overall: parsed.overall || evidence.sentimentLabel || 'Neutral',
+            confidence: parsed.confidence ? String(parsed.confidence) : confidenceFromEvidence,
+            reasoning: reasoning.length > 0 ? reasoning : (evidence.strongSignals.length > 0 || evidence.weakSignals.length > 0 ? [
+              `Headline evidence score is ${evidence.score}, which points to ${evidence.sentimentLabel.toLowerCase()} pressure or support for ${cleanSymbol}.`,
+              evidence.strongSignals.length > 0 ? `Supportive headlines: ${evidence.strongSignals.slice(0, 2).join('; ')}.` : `No decisive supportive headlines surfaced for ${cleanSymbol}.`,
+              evidence.weakSignals.length > 0 ? `Risk headlines: ${evidence.weakSignals.slice(0, 2).join('; ')}.` : `No major negative catalyst headlines surfaced for ${cleanSymbol}.`,
+            ] : fallback.reasoning),
+            risks: risks.length > 0 ? risks : (evidence.weakSignals.length > 0 ? [
+              `The main negative headlines center on ${evidence.weakSignals.slice(0, 2).join('; ')}.`,
+              'Additional news could quickly change the tone if a fresh catalyst appears.',
+              'Headline coverage is still limited to the stories surfaced here.',
+            ] : fallback.risks),
           };
         }
       } catch (aiError) {

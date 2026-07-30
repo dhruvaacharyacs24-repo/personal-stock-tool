@@ -30,7 +30,7 @@ function VerdictBadge({ value }: { value: string }) {
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider ${color}`}>
       <Icon className="w-3 h-3" />
-      {value.split(' ')[0]}
+      <span className="leading-none">{value.split(' ')[0]}</span>
     </span>
   );
 }
@@ -72,33 +72,35 @@ function LoadingSkeleton({ symbol }: { symbol: string }) {
 function AnalysisContent({ analysis, symbol }: { analysis: AIAnalysis; symbol: string }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 mb-1">
-        <div className="p-2 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.3)]">
-          <Brain className="w-4 h-4 text-white" />
+      <div className="flex flex-col gap-2 border-b border-white/5 pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.3)] shrink-0">
+            <Brain className="w-4 h-4 text-white" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">AI Stock Analysis</p>
+            <h4 className="text-sm font-semibold text-white truncate">{symbol.replace('.NS', '')}</h4>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">AI Stock Analysis</p>
-          <h4 className="text-sm font-semibold text-white">{symbol.replace('.NS', '')}</h4>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10">
             <Target className="w-3 h-3 text-indigo-400" />
-            <span className="text-[10px] font-bold text-white">{analysis.confidence}</span>
+            <span className="text-[10px] font-bold text-white leading-none">{analysis.confidence}</span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-center">
-          <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500 mb-1">Long Term</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-center min-h-[4.25rem] flex flex-col justify-center">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500 mb-1 leading-none">Long Term</p>
           <VerdictBadge value={analysis.longTerm} />
         </div>
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-center">
-          <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500 mb-1">Swing</p>
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-center min-h-[4.25rem] flex flex-col justify-center">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500 mb-1 leading-none">Swing</p>
           <VerdictBadge value={analysis.swing} />
         </div>
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-center">
-          <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500 mb-1">Intraday</p>
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-center min-h-[4.25rem] flex flex-col justify-center">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500 mb-1 leading-none">Intraday</p>
           <VerdictBadge value={analysis.intraday} />
         </div>
       </div>
@@ -110,7 +112,7 @@ function AnalysisContent({ analysis, symbol }: { analysis: AIAnalysis; symbol: s
         </div>
         <ul className="space-y-2">
           {analysis.strengths.map((item: string, i: number) => (
-            <li key={i} className="flex gap-2.5 text-[12px] text-slate-300 leading-relaxed">
+            <li key={i} className="flex gap-2.5 text-[12px] text-slate-300 leading-relaxed items-start">
               <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
               {item}
             </li>
@@ -125,7 +127,7 @@ function AnalysisContent({ analysis, symbol }: { analysis: AIAnalysis; symbol: s
         </div>
         <ul className="space-y-2">
           {analysis.weaknesses.map((item: string, i: number) => (
-            <li key={i} className="flex gap-2.5 text-[12px] text-slate-300 leading-relaxed">
+            <li key={i} className="flex gap-2.5 text-[12px] text-slate-300 leading-relaxed items-start">
               <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
               {item}
             </li>

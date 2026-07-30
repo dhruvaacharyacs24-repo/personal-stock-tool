@@ -340,30 +340,48 @@ export default function Dashboard() {
                       transition={{ duration: 0.25 }}
                       className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96),rgba(2,6,23,0.98))] p-4 shadow-[0_0_35px_rgba(99,102,241,0.08)]"
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-300">AI STOCK ANALYSIS</span>
-                        {analysisLoading ? (
-                          <span className="text-[9px] text-slate-400">LOADING...</span>
-                        ) : (
-                          <span className="text-[9px] uppercase tracking-[0.25em] text-emerald-300">{analysis?.confidence || 'LIVE'}</span>
-                        )}
-                      </div>
-                      <div className="mb-3 text-[10px] uppercase tracking-[0.25em] text-slate-500">
-                        {selectedSymbol.replace('.NS', '')}
+                      <div className="flex flex-col gap-2 border-b border-white/5 pb-3 mb-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-300 block">AI STOCK ANALYSIS</span>
+                          <div className="text-[10px] uppercase tracking-[0.25em] text-slate-500">
+                            {selectedSymbol.replace('.NS', '')}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          {analysisLoading ? (
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9px] uppercase tracking-[0.25em] text-slate-400">Loading</span>
+                          ) : (
+                            <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[9px] uppercase tracking-[0.25em] text-emerald-300">{analysis?.confidence || 'LIVE'}</span>
+                          )}
+                        </div>
                       </div>
                       {analysis ? (
                         <div className="space-y-3 text-[11px] font-medium normal-case tracking-normal">
                           <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="text-indigo-200 font-semibold">AI Verdict</div>
-                              <div className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.25em] text-emerald-300">
-                                {analysis.confidence}
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                              <div className="text-indigo-200 font-semibold leading-none">AI Verdict</div>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[9px] uppercase tracking-[0.25em] text-slate-300">
+                                  Confidence
+                                </span>
+                                <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[9px] uppercase tracking-[0.25em] text-emerald-300">
+                                  {analysis.confidence}
+                                </span>
                               </div>
                             </div>
-                            <div className="grid grid-cols-1 gap-2 text-slate-200">
-                              <div className="flex items-center justify-between rounded-lg bg-black/20 px-2 py-1.5"><span>Long Term</span><span className="font-semibold text-emerald-300">{analysis.longTerm}</span></div>
-                              <div className="flex items-center justify-between rounded-lg bg-black/20 px-2 py-1.5"><span>Swing</span><span className="font-semibold text-amber-300">{analysis.swing}</span></div>
-                              <div className="flex items-center justify-between rounded-lg bg-black/20 px-2 py-1.5"><span>Intraday</span><span className="font-semibold text-rose-300">{analysis.intraday}</span></div>
+                            <div className="grid grid-cols-1 gap-2 text-slate-200 sm:grid-cols-3">
+                              <div className="rounded-lg bg-black/20 px-3 py-2 min-h-[3rem] flex flex-col justify-between gap-1">
+                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Long Term</span>
+                                <span className="font-semibold text-emerald-300 leading-tight">{analysis.longTerm}</span>
+                              </div>
+                              <div className="rounded-lg bg-black/20 px-3 py-2 min-h-[3rem] flex flex-col justify-between gap-1">
+                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Swing</span>
+                                <span className="font-semibold text-amber-300 leading-tight">{analysis.swing}</span>
+                              </div>
+                              <div className="rounded-lg bg-black/20 px-3 py-2 min-h-[3rem] flex flex-col justify-between gap-1">
+                                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Intraday</span>
+                                <span className="font-semibold text-rose-300 leading-tight">{analysis.intraday}</span>
+                              </div>
                             </div>
                           </div>
 
@@ -374,9 +392,9 @@ export default function Dashboard() {
                             </div>
                             <ul className="space-y-2 text-slate-300">
                               {analysis.strengths.map((item) => (
-                                <li key={item} className="flex gap-2">
+                                <li key={item} className="flex gap-2 items-start">
                                   <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                                  <span>{item}</span>
+                                  <span className="leading-relaxed">{item}</span>
                                 </li>
                               ))}
                             </ul>
@@ -389,9 +407,9 @@ export default function Dashboard() {
                             </div>
                             <ul className="space-y-2 text-slate-300">
                               {analysis.weaknesses.map((item) => (
-                                <li key={item} className="flex gap-2">
+                                <li key={item} className="flex gap-2 items-start">
                                   <span className="mt-1 h-1.5 w-1.5 rounded-full bg-rose-400" />
-                                  <span>{item}</span>
+                                  <span className="leading-relaxed">{item}</span>
                                 </li>
                               ))}
                             </ul>
@@ -399,7 +417,7 @@ export default function Dashboard() {
 
                           <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-slate-300">
                             <div className="mb-1 text-[10px] uppercase tracking-[0.25em] text-slate-500">Summary</div>
-                            {analysis.summary}
+                            <p className="leading-6">{analysis.summary}</p>
                           </div>
                         </div>
                       ) : (
